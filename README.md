@@ -1,1 +1,2 @@
 # pr-triage-effort-action
+This repository contains the GitHub Action that allows the analysis and estimation of review effort form currently opened PRs. This project is the fruit of a end of study project.
