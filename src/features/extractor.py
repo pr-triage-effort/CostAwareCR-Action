@@ -5,7 +5,7 @@ from github.PullRequest import PullRequest
 from features.features_project import project_features
 from features.features_code import code_dir_features, code_file_features, code_modify_entropy
 from features.features_reviewer import reviewer_counts, avg_reviewer_review_count, avg_reviewer_exp
-from features.features_author import author_review_number, author_merge_ratios,  total_change_number, author_experience, author_changes_per_week
+from features.features_author import author_review_number, author_merge_ratios,  total_change_number, author_experience, author_changes_per_week, author_features
 
 class Extractor:
     def __init__(self, gApi: Github, repo: str):
@@ -28,11 +28,11 @@ class Extractor:
         print(f"Pr: {pr.title}")
 
         # Code features
-        features.update(self.extract_reviewer_features(pr, review_counts))
+        # features.update(self.extract_reviewer_features(pr, review_counts))
         features.update(self.extract_author_features(pr))
-        features.update(self.extract_project_features(pr))
-        features.update(self.extract_text_features(pr))
-        features.update(self.extract_code_features(pr))
+        # features.update(self.extract_project_features(pr))
+        # features.update(self.extract_text_features(pr))
+        # features.update(self.extract_code_features(pr))
 
         return features
 
@@ -61,26 +61,28 @@ class Extractor:
         feats = {}
         start_time = time.time()
         
-        # Replace hardcoded value with function implementation
-        feats["author_experience"] = author_experience(pr, self.gApi, self.feature_cache)
-        time1 = time.time()
-        print(f"\t\t author_experience - {round(time1-start_time,3)}s")
+        feats.update(author_features(pr, self.gApi, self.feature_cache))
+        
+        # # Replace hardcoded value with function implementation
+        # feats["author_experience"] = author_experience(pr, self.gApi, self.feature_cache)
+        # time1 = time.time()
+        # print(f"\t\t author_experience - {round(time1-start_time,3)}s")
 
-        feats.update(author_merge_ratios(pr, self.gApi, self.feature_cache))
-        time2 = time.time()
-        print(f"\t\t author_merge_ratios - {round(time2-time1,3)}s")
+        # feats.update(author_merge_ratios(pr, self.gApi, self.feature_cache))
+        # time2 = time.time()
+        # print(f"\t\t author_merge_ratios - {round(time2-time1,3)}s")
 
-        feats["total_change_number"] = total_change_number(pr, self.gApi, self.feature_cache)
-        time3 = time.time()
-        print(f"\t\t total_change_number - {round(time3-time2,3)}s")
+        # feats["total_change_number"] = total_change_number(pr, self.gApi, self.feature_cache)
+        # time3 = time.time()
+        # print(f"\t\t total_change_number - {round(time3-time2,3)}s")
 
-        feats["author_review_number"] = author_review_number(pr, self.gApi, self.feature_cache)
-        time4 = time.time()
-        print(f"\t\t author_review_number - {round(time4-time3,3)}s")
+        # feats["author_review_number"] = author_review_number(pr, self.gApi, self.feature_cache)
+        # time4 = time.time()
+        # print(f"\t\t author_review_number - {round(time4-time3,3)}s")
 
-        feats["author_changes_per_week"] = author_changes_per_week(pr, self.gApi, self.feature_cache)
-        time5 = time.time()
-        print(f"\t\t author_changes_per_week - {round(time5-time4,3)}s")
+        # feats["author_changes_per_week"] = author_changes_per_week(pr, self.gApi, self.feature_cache)
+        # time5 = time.time()
+        # print(f"\t\t author_changes_per_week - {round(time5-time4,3)}s")
 
         return feats
 

@@ -10,9 +10,13 @@ from ml_model import Analyzer
 from utils import time_exec
 from features.extractor import Extractor
 
+PR_LIMIT = 50
+
 
 def analysis_script():
     # load_dotenv()
+    analysis_limit = PR_LIMIT
+    
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
 
@@ -28,12 +32,16 @@ def analysis_script():
 
     # Get all opened pull requests
     pull_requests = gApi.get_repo(full_name_or_id=repo).get_pulls(state="open")
-    prs = gApi.get_repo(full_name_or_id=repo).get_pulls(state="closed")
-    closed_prs_last_sixty = [pr for pr in prs if (date.today() - pr.closed_at.date()).days >= -60]
-    review_counts = get_review_count_per_user(closed_prs_last_sixty)
+    # prs = gApi.get_repo(full_name_or_id=repo).get_pulls(state="closed")
+    # closed_prs_last_sixty = [pr for pr in prs if (date.today() - pr.closed_at.date()).days >= -60]
+    review_counts = None #get_review_count_per_user(closed_prs_last_sixty)
     for pull in pull_requests:
+        if analysis_limit == 0:
+            break
+        
         pr_feats = extractor.extract_features(pull, review_counts)
         features.append(pr_feats)
+        analysis_limit -= 1
 
     step_time = time_exec(step_time, "Feature extract")
 
