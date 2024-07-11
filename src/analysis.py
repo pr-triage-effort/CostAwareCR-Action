@@ -3,7 +3,7 @@ import json
 import time
 from datetime import date
 from operator import itemgetter
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 from github import Github, Auth
 from ml_model import Analyzer
@@ -14,7 +14,7 @@ PR_LIMIT = 50
 
 
 def analysis_script():
-    # load_dotenv()
+    load_dotenv(override=True)
     analysis_limit = PR_LIMIT
     
     token = os.environ.get("GITHUB_TOKEN")

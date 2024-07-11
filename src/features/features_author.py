@@ -16,8 +16,6 @@ def is_private_profile(user: NamedUser) -> bool:
             raise e
     return False
 
-
-
 def author_features(pr: PullRequest, api: Github, cache: dict):
     
     # Author username
@@ -35,7 +33,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
     # If present, return results
     if None not in (experience, change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio):
         return {
-            'author experience': experience,
+            'author_experience': experience,
             'total_change_number': change_number,
             'author_review_number': review_number,
             'author_changes_per_week': changes_per_week,
@@ -46,7 +44,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
     # Author experience
     registration_date = pr.user.created_at
     latest_revision = pr.created_at
-    experience = latest_revision.date() - registration_date.date()
+    experience = (latest_revision.date() - registration_date.date())
     
     # Author total change number
     change_number = api.search_issues(f"is:pr author:{author}").totalCount
@@ -83,7 +81,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
     if author not in cache['users']:
         cache['users'][author] = {}
 
-    cache['users'][author]['author experience'] = experience
+    cache['users'][author]['author_experience'] = experience
     cache['users'][author]['total_change_number'] = change_number
     cache['users'][author]['author_review_number'] = review_number
     cache['users'][author]['author_changes_per_week'] = changes_per_week
