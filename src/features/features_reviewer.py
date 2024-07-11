@@ -4,6 +4,7 @@ from datetime import date
 from github import Github, GithubException
 from github.PullRequest import PullRequest
 
+# Good to go
 def reviewer_counts(pr: PullRequest, gapi: Github) -> dict:
     feats = {}
     repo = pr.base.repo.full_name.split('/')[1]
@@ -26,6 +27,7 @@ def avg_reviewer_review_count(pr, review_counts: dict) -> dict:
     feats["avg_reviewer_review_count"] = get_reviewer_review_count(pr.get_reviews(), review_counts)
     return feats
 
+# Can average data from author_cache (if not in cache, call author_feature function 1 time)
 def avg_reviewer_exp(pr: PullRequest) -> dict:
     feats = {}
     reviewers = {}
@@ -46,6 +48,7 @@ def get_reviewer_last_push_in_pr(pr: PullRequest, reviewer: str) -> date:
             last_change = commit.last_modified_datetime.date()
     return last_change
 
+# Can average data from author_cache (if not in cache, call author_feature function 1 time)
 def get_reviewer_review_count(reviews, review_counts: dict) -> int:
     reviewers = {}
     for review in reviews:

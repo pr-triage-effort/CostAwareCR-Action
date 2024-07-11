@@ -3,9 +3,9 @@ import time
 from github import Github
 from github.PullRequest import PullRequest
 from features.features_project import project_features
-from features.features_code import code_dir_features, code_file_features, code_modify_entropy, code_features
+from features.features_code import code_features
 from features.features_reviewer import reviewer_counts, avg_reviewer_review_count, avg_reviewer_exp
-from features.features_author import author_review_number, author_merge_ratios,  total_change_number, author_experience, author_changes_per_week, author_features
+from features.features_author import  author_features
 
 class Extractor:
     def __init__(self, gApi: Github, repo: str):
@@ -29,10 +29,10 @@ class Extractor:
         start_time = time.time()
 
         # Code features
-        # features.update(self.extract_author_features(pr))
+        features.update(self.extract_author_features(pr))
         # features.update(self.extract_reviewer_features(pr, review_counts))
-        # features.update(self.extract_project_features(pr))
-        # features.update(self.extract_text_features(pr))
+        features.update(self.extract_project_features(pr))
+        features.update(self.extract_text_features(pr))
         features.update(self.extract_code_features(pr))
 
         print(f"\t Pr: {pr.title} | {round(time.time()-start_time,3)}s")
@@ -41,52 +41,20 @@ class Extractor:
 
     def extract_reviewer_features(self, pr: PullRequest, review_counts: dict) -> dict:
         feats = {}
-        # start_time = time.time()
-
-        # project = self.gApi.get_repo(full_name_or_id=self.repo)
-        # Replace hardcoded value with function implementation
 
         feats.update(reviewer_counts(pr, self.gApi))
-        # time1 = time.time()
-        # print(f"\t\t reviewer_counts - {round(time1-start_time,3)}s")
-
         feats.update(avg_reviewer_review_count(pr, review_counts))
-        # time2 = time.time()
-        # print(f"\t\t avg_reviewer_review_count - {round(time2-time1,3)}s")
-
         feats.update(avg_reviewer_exp(pr))
-        # time3 = time.time()
-        # print(f"\t\t avg_reviewer_exp - {round(time3-time2,3)}s")
 
         return feats
 
     def extract_author_features(self, pr: PullRequest) -> dict:
-        feats = {}
-        
         return author_features(pr, self.gApi, self.feature_cache)
-        
-        # # Replace hardcoded value with function implementation
-        feats["author_experience"] = author_experience(pr, self.gApi, self.feature_cache)
-        feats.update(author_merge_ratios(pr, self.gApi, self.feature_cache))
-        feats["total_change_number"] = total_change_number(pr, self.gApi, self.feature_cache)
-        feats["author_review_number"] = author_review_number(pr, self.gApi, self.feature_cache)
-        feats["author_changes_per_week"] = author_changes_per_week(pr, self.gApi, self.feature_cache)
-
-        return feats
 
 
     def extract_project_features(self, pr: PullRequest) -> dict:
-        feats = {}
-        # start_time = time.time()
-        
-        feats.update(project_features(pr, self.gApi, self.feature_cache))
-        # time1 = time.time()
-        # print(f"\t\t project_features - {round(time1-start_time,3)}s")
-
-        return feats
+        return project_features(pr, self.gApi, self.feature_cache)
     
-
-    # TODO check how intricate parsing should be (regex)
     def extract_text_features(self, pr: PullRequest) -> dict:
         feats = {
             'description_length': 0,
@@ -96,21 +64,17 @@ class Extractor:
         }
 
         description = pr.body
-        # print(description)
-
-        # TODO check with client if the following gives a viable approximation
         feats['description_length'] = len(re.findall(r'\w+', description))
 
-        # TODO Are doc/fix/feat mutually exclusive?
-        # TODO Check if "doc" and others should be isolated words (word boundaries in regex)
-        keywords = {'doc': 'doc', 'licence': 'doc', 'copyright': 'doc', 'bug': 'fix', 'fix': 'fix', 'defect': 'fix'}
-        for key, value in keywords.items():
-            if re.search(rf'\b{re.escape(key)}\b', description, re.IGNORECASE):
-                match(value):
-                    case 'doc':
+        # TODO play with regex to include more keywords
+        keywords = ['doc, license, copyright, bug, fix, defect']
+        for word in keywords:
+            if re.search(rf'\b{re.escape(word)}\b', description, re.IGNORECASE):
+                match(word):
+                    case 'doc'|'license'|'copyright':
                         feats["is_documentation"] = 1
                         return feats
-                    case 'fix':
+                    case 'bug'|'fix'|'defect':
                         feats["is_bug_fixing"] = 1
                         return feats
 
@@ -118,14 +82,5 @@ class Extractor:
         return feats
 
     def extract_code_features(self, pr: PullRequest) -> dict:
-        feats = {}
-
         return code_features(pr)
-
-        # Replace hardcoded value with function implementation
-        feats.update(code_dir_features(pr))    
-        feats.update(code_file_features(pr))
-        feats.update(code_modify_entropy(pr))
-
-        return feats
     

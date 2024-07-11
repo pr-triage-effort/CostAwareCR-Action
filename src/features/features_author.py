@@ -4,18 +4,6 @@ from github.PullRequest import PullRequest
 
 DEFAULT_MERGE_RATIO = 0.5
 
-def is_private_profile(user: NamedUser) -> bool:
-    try:
-        public_events = user.get_public_events()
-        if public_events.totalCount == 0:
-            return True
-    except GithubException as e:
-        if e.status == 403:  # Forbidden error may indicate a private profile
-            return True
-        else:
-            raise e
-    return False
-
 def author_features(pr: PullRequest, api: Github, cache: dict):
     
     # Author username
@@ -44,7 +32,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
     # Author experience
     registration_date = pr.user.created_at
     latest_revision = pr.created_at
-    experience = (latest_revision.date() - registration_date.date())
+    experience = (latest_revision.date() - registration_date.date()).days / 365.25
     
     # Author total change number
     change_number = api.search_issues(f"is:pr author:{author}").totalCount
@@ -97,6 +85,20 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
             'author_merge_ratio_in_project': project_merge_ratio
         }
 
+
+# Not used, will be removed when edge case functions are created
+def is_private_profile(user: NamedUser) -> bool:
+    try:
+        public_events = user.get_public_events()
+        if public_events.totalCount == 0:
+            return True
+    except GithubException as e:
+        if e.status == 403:  # Forbidden error may indicate a private profile
+            return True
+        else:
+            raise e
+    return False
+
 def author_review_number(pr: PullRequest, gApi: Github, cache: dict):
     # Author username
     author = pr.user.login
@@ -148,41 +150,6 @@ def author_is_reviewer(pull: PullRequest, author: str) -> int:
 
     return False
 
-# TODO The experience is in days or years
-def author_experience(pr: PullRequest, gApi: Github, cache: dict):
-    # Author username
-    author = pr.user.login
-
-    # Try retrieve from cache
-    author_cache = cache.get('users', {}).get(author, {})
-    experience = author_cache.get('total_change_number', None)
-
-    if experience is not None:
-        return experience
-    
-    # TODO verify that we use Github as reference and not first commit ro project
-    # Get authors registration date
-    registration_date = pr.user.created_at
-
-    # Get latest pr revision date by the author
-    latest_revision = pr.created_at
-    
-    # TODO do we use latest author commit in PR/ latest PR mod/ PR created_at
-    commits = pr.get_commits()
-    for commit in commits:
-        if commit.author == author and commit.last_modified_datetime > latest_revision:
-            latest_revision = commit.last_modified_datetime
-
-    experience = latest_revision.date() - registration_date.date()
-
-    # Cache result
-    if author not in cache['users']:
-        cache['users'][author] = {}
-
-    cache['users'][author]['author_experience'] = experience.days
-    
-    return experience.days
-
 def total_change_number(pr: PullRequest, gApi: Github, cache: dict):
     # Author username
     author = pr.user.login
@@ -217,67 +184,6 @@ def total_change_number(pr: PullRequest, gApi: Github, cache: dict):
     cache['users'][author]['total_change_number'] = pr_count
 
     return pr_count
-
-def author_merge_ratios(pr: PullRequest, gApi: Github, cache: dict):
-    features = {}
-
-    # Author username
-    author = pr.user.login
-    default_merge_ratio = 0.5
-
-    # Latest 60-day window
-    now = datetime.datetime.now(datetime.timezone.utc)
-    sixty_days_ago = now - datetime.timedelta(days=60)
-
-    # Retrieve from cache if present
-    author_cache = cache.get('users', {}).get(author, {})
-    ratio1 = author_cache.get('author_merge_ratio', None)
-    ratio2 = author_cache.get('author_merge_ratio_in_project', None)
-
-    if None not in (ratio1, ratio2):
-        features["author_merge_ratio"] = ratio1
-        features["author_merge_ratio_in_project"] = ratio2
-
-        return features
-
-    try:
-        # Authors PRs in the last 60 days
-        author_pr_closed = gApi.search_issues(f"author:{author} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-        author_pr_merged = gApi.search_issues(f"author:{author} type:pr is:merged merged:{sixty_days_ago.date()}..{now.date()}").totalCount
-
-        # Authors in project PRs in the last 60 days
-        author_pr_closed_in_project = gApi.search_issues(f"author:{author} repo:{pr.base.repo.full_name} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-        author_pr_merged_in_project = gApi.search_issues(f"author:{author} repo:{pr.base.repo.full_name} type:pr is:merged merged:{sixty_days_ago.date()}..{now.date()}").totalCount
-
-        # Determine global merge ratio
-        if author_pr_closed == 0:
-            features["author_merge_ratio"] = default_merge_ratio
-        else:
-            features["author_merge_ratio"] = author_pr_merged / author_pr_closed
-
-        # Determine project merge ratio
-        if author_pr_closed_in_project == 0:
-            features["author_merge_ratio_in_project"] = default_merge_ratio
-        else:
-            features["author_merge_ratio_in_project"] = author_pr_merged_in_project / author_pr_closed_in_project
-
-    # Handle possibly private author activity
-    except GithubException as e:
-        if e.status == 422:
-            # Assign default merge ratio if user's activity is private
-            features["author_merge_ratio"] = default_merge_ratio
-            features["author_merge_ratio_in_project"] = default_merge_ratio
-        else:
-            raise e    
-
-    # Cache results
-    if author not in cache['users']:
-        cache['users'][author] = {}
-
-    cache['users'][author]['author_merge_ratio'] = features.get('author_merge_ratio')
-    cache['users'][author]['author_merge_ratio_in_project'] = features.get('author_merge_ratio_in_project')
-
-    return features
 
 # TODO what value to assign if private profile
 def author_changes_per_week(pr: PullRequest, gApi: Github, cache: dict):
