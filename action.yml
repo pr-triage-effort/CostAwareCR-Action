@@ -37,12 +37,6 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
         PYTHONUNBUFFERED: 1
-    
-    - name: Save metrics file to Cache
-      uses: actions/cache@v3
-      with:
-        path: ./cache.json
-        key: ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-${{ github.sha }}
       
     - name: Upload ranking JSON as artifact
       uses: actions/upload-artifact@v4
