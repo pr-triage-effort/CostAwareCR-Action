@@ -10,7 +10,7 @@ from ml_model import Analyzer
 from utils import time_exec
 from features.extractor import Extractor
 
-PR_LIMIT = 10
+PR_LIMIT = 50
 
 
 def analysis_script():
