@@ -37,9 +37,11 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
     
-    - name: Save Metrics to Cache
+    - name: Update Metrics file
       run: cp ./cache.json ./cache.json
       shell: bash
+    
+    - name: Save metrics file to Cache
       uses: actions/cache@v3
       with:
         path: ./cache.json
