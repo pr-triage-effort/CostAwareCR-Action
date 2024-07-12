@@ -4,7 +4,7 @@ from github import Github
 from github.PullRequest import PullRequest
 from features.features_project import project_features
 from features.features_code import code_features
-from features.features_reviewer import reviewer_counts, avg_reviewer_review_count, avg_reviewer_exp
+from features.features_reviewer import reviewer_features
 from features.features_author import  author_features
 
 class Extractor:
@@ -30,7 +30,7 @@ class Extractor:
 
         # Code features
         features.update(self.extract_author_features(pr))
-        # features.update(self.extract_reviewer_features(pr, review_counts))
+        features.update(self.extract_reviewer_features(pr))
         features.update(self.extract_project_features(pr))
         features.update(self.extract_text_features(pr))
         features.update(self.extract_code_features(pr))
@@ -39,12 +39,14 @@ class Extractor:
 
         return features
 
-    def extract_reviewer_features(self, pr: PullRequest, review_counts: dict) -> dict:
+    def extract_reviewer_features(self, pr: PullRequest) -> dict:
         feats = {}
 
-        feats.update(reviewer_counts(pr, self.gApi))
-        feats.update(avg_reviewer_review_count(pr, review_counts))
-        feats.update(avg_reviewer_exp(pr))
+        return reviewer_features(pr, self.gApi, self.feature_cache)
+
+        # feats.update(reviewer_counts(pr, self.gApi))
+        # feats.update(avg_reviewer_review_count(pr, review_counts))
+        # feats.update(avg_reviewer_exp(pr))
 
         return feats
 

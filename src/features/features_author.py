@@ -4,10 +4,12 @@ from github.PullRequest import PullRequest
 
 DEFAULT_MERGE_RATIO = 0.5
 
-def author_features(pr: PullRequest, api: Github, cache: dict):
+def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: str = None):
     
     # Author username
     author = pr.user.login
+    if diff_user is not None:
+        author = diff_user
 
     # Try retrieve from cache
     author_cache = cache.get('users', {}).get(author, {})
@@ -77,7 +79,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
     cache['users'][author]['author_merge_ratio_in_project'] = project_merge_ratio
     
     return {
-            'author experience': experience,
+            'author_experience': experience,
             'total_change_number': change_number,
             'author_review_number': review_number,
             'author_changes_per_week': changes_per_week,
