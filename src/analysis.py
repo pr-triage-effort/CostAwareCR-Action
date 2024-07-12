@@ -10,7 +10,7 @@ from ml_model import Analyzer
 from utils import time_exec
 from features.extractor import Extractor
 
-PR_LIMIT = 50
+PR_LIMIT = 10
 
 
 def analysis_script():
@@ -23,23 +23,22 @@ def analysis_script():
     features = []
     start_time = time.time()
 
-    # Init library
+    # Init librarys
     auth = Auth.Token(token)
     gApi = Github(auth=auth)
     extractor = Extractor(gApi, repo)
+    if os.path.isfile('./cache.json'):
+        extractor.set_cache('./cache.json')
 
     step_time = time_exec(start_time, "Init")
 
     # Get all opened pull requests
     pull_requests = gApi.get_repo(full_name_or_id=repo).get_pulls(state="open")
-    # prs = gApi.get_repo(full_name_or_id=repo).get_pulls(state="closed")
-    # closed_prs_last_sixty = [pr for pr in prs if (date.today() - pr.closed_at.date()).days >= -60]
-    review_counts = None #get_review_count_per_user(closed_prs_last_sixty)
     for pull in pull_requests:
         if analysis_limit == 0:
             break
         
-        pr_feats = extractor.extract_features(pull, review_counts)
+        pr_feats = extractor.extract_features(pull)
         features.append(pr_feats)
         analysis_limit -= 1
 
@@ -67,7 +66,8 @@ def analysis_script():
     ordered_prs = sorted(ordered_prs, key=itemgetter("effort"))
 
     # Write to file
-    write_result_json(ordered_prs)
+    write_to_json(ordered_prs, "./results.json")
+    write_to_json(extractor.get_cache_(), "./cache.json")
 
     time_exec(step_time, "Create artefact")
     print(f"Analysis script on \"{repo}\" took {round((time.time() - start_time), 3)} sec to run")
@@ -76,10 +76,8 @@ def analysis_script():
 # def post_effort_reviews(prs: PaginatedList[PullRequest], effort: list):
 #     pass
 
-def write_result_json(data: list):
-    file_path = "./results.json"
-
-    with open(file_path, "w", encoding="utf-8") as output_file:
+def write_to_json(data: list, path: str):
+    with open(path, "w", encoding="utf-8") as output_file:
         json.dump(data, output_file, indent=2)
 
 def find_first(lst: list, attr: str, value):

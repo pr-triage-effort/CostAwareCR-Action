@@ -1,5 +1,6 @@
 import re
 import time
+import json
 from github import Github
 from github.PullRequest import PullRequest
 from features.features_project import project_features
@@ -12,10 +13,12 @@ class Extractor:
         self.gApi = gApi
         self.repo = repo
         self.init_shared_deps()
+
+        # Cache
         self.feature_cache = {
             'users': {},
             'project': {}
-        }
+        }         
 
     def init_shared_deps(self):
         # All repo closed PRS
@@ -23,7 +26,14 @@ class Extractor:
         # All repo merged PRS
         pass
 
-    def extract_features(self, pr: PullRequest, review_counts: dict) -> dict:
+    def set_cache(self, file_path: str):
+        with open(file_path, encoding="utf-8") as cache:
+            self.feature_cache = json.load(cache)
+
+    def get_cache_(self) -> dict:
+        return self.feature_cache
+
+    def extract_features(self, pr: PullRequest) -> dict:
         features = {}
         # print(f"Pr: {pr.title}")
         start_time = time.time()
