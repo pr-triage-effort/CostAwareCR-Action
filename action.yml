@@ -36,10 +36,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
-    
-    - name: Update Metrics file
-      run: cp ./cache.json ./cache.json
-      shell: bash
+        PYTHONUNBUFFERED: 1
     
     - name: Save metrics file to Cache
       uses: actions/cache@v3
