@@ -27,7 +27,7 @@ def analysis_script():
     auth = Auth.Token(token)
     gApi = Github(auth=auth)
     extractor = Extractor(gApi, repo)
-    if cache_reset == False:
+    if cache_reset == 'false':
         print('The cache will not be used')
         if os.path.isfile('./cache.json'):
             extractor.set_cache('./cache.json')
