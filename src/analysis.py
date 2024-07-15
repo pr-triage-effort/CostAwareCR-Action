@@ -18,6 +18,7 @@ def analysis_script():
     
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
+    cache_reset = os.environ.get("CHACHE_RESET")
 
     features = []
     start_time = time.time()
@@ -26,8 +27,9 @@ def analysis_script():
     auth = Auth.Token(token)
     gApi = Github(auth=auth)
     extractor = Extractor(gApi, repo)
-    if os.path.isfile('./cache.json'):
-        extractor.set_cache('./cache.json')
+    if cache_reset == False:
+        if os.path.isfile('./cache.json'):
+            extractor.set_cache('./cache.json')
 
     step_time = time_exec(start_time, "Init")
 
