@@ -2,8 +2,8 @@ name: 'PR Triage by Review Effort'
 description: 'A Github Action that uses custom ML model to analyse the efffort required to review a given PR inthe repository.
 
 branding:
-  icon: 'git-pull-request'
-  color: 'green'
+  icon: git-pull-request
+  color: green
 
 inputs:
   github-token:
