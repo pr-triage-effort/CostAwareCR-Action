@@ -1,7 +1,7 @@
 import os
 import json
 import time
-from datetime import date
+
 from operator import itemgetter
 from dotenv import load_dotenv
 
@@ -11,11 +11,10 @@ from utils import time_exec
 from features.extractor import Extractor
 
 PR_LIMIT = 50
-
-
+PR_OFFSET = 0
 def analysis_script():
     load_dotenv(override=True)
-    analysis_limit = PR_LIMIT
+    analysis_cnt = 1
     
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
@@ -35,12 +34,16 @@ def analysis_script():
     # Get all opened pull requests
     pull_requests = gApi.get_repo(full_name_or_id=repo).get_pulls(state="open")
     for pull in pull_requests:
-        if analysis_limit == 0:
-            break
+        # if analysis_cnt > PR_LIMIT:
+        #     break
+
+        if analysis_cnt < PR_OFFSET:
+            analysis_cnt += 1
+            continue
         
-        pr_feats = extractor.extract_features(pull)
+        pr_feats = extractor.extract_features(pull, analysis_cnt)
         features.append(pr_feats)
-        analysis_limit -= 1
+        analysis_cnt += 1
 
     step_time = time_exec(step_time, "Feature extract")
 

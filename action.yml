@@ -8,6 +8,10 @@ inputs:
   repo:
     description: 'Repository to analyse'
     required: true
+  cache-reset:
+    description: 'Empty cache before running'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -36,6 +40,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
+        CACHE_RESET:  ${{ inputs.cache-reset }}
         PYTHONUNBUFFERED: 1
       
     - name: Upload ranking JSON as artifact

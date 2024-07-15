@@ -1,12 +1,15 @@
 import re
 import time
 import json
+
 from github import Github
 from github.PullRequest import PullRequest
+
 from features.features_project import project_features
 from features.features_code import code_features
 from features.features_reviewer import reviewer_features
 from features.features_author import  author_features
+from features.user_utils import is_bot_user
 
 class Extractor:
     def __init__(self, gApi: Github, repo: str):
@@ -33,7 +36,7 @@ class Extractor:
     def get_cache_(self) -> dict:
         return self.feature_cache
 
-    def extract_features(self, pr: PullRequest) -> dict:
+    def extract_features(self, pr: PullRequest, nb: int) -> dict:
         features = {}
         # print(f"Pr: {pr.title}")
         start_time = time.time()
@@ -45,20 +48,12 @@ class Extractor:
         features.update(self.extract_text_features(pr))
         features.update(self.extract_code_features(pr))
 
-        print(f"\t Pr: {pr.title} | {round(time.time()-start_time,3)}s")
+        print(f"\t ({self.feature_cache.get('users').get(pr.user.login, {}).get('type', None)}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
 
         return features
 
     def extract_reviewer_features(self, pr: PullRequest) -> dict:
-        feats = {}
-
         return reviewer_features(pr, self.gApi, self.feature_cache)
-
-        # feats.update(reviewer_counts(pr, self.gApi))
-        # feats.update(avg_reviewer_review_count(pr, review_counts))
-        # feats.update(avg_reviewer_exp(pr))
-
-        return feats
 
     def extract_author_features(self, pr: PullRequest) -> dict:
         return author_features(pr, self.gApi, self.feature_cache)
@@ -66,7 +61,7 @@ class Extractor:
 
     def extract_project_features(self, pr: PullRequest) -> dict:
         return project_features(pr, self.gApi, self.feature_cache)
-    
+
     def extract_text_features(self, pr: PullRequest) -> dict:
         feats = {
             'description_length': 0,
