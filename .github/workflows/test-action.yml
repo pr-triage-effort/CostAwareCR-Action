@@ -16,5 +16,5 @@ jobs:
       - name: test action
         uses: ./ # Uses an action in the root directory
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.TEST_API_KEY }}
           repo: ${{ inputs.repo }}
