@@ -105,6 +105,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
     if author not in cache['users']:
         cache['users'][author_name] = {}
 
+    cache['users'][author_name]['tag'] = 'author'
     cache['users'][author_name]['type'] = user_type
     cache['users'][author_name]['author_experience'] = experience
     cache['users'][author_name]['total_change_number'] = change_number
@@ -182,10 +183,12 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
     review_number = []
     changes_per_week = []
 
+    # TODO Issue when 
     for author in author_cache.values():
-        change_number.append(author['total_change_number'])
-        review_number.append(author['author_review_number'])
-        changes_per_week.append(author['author_changes_per_week'])
+        if author['tag'] == 'author':
+            change_number.append(author['total_change_number'])
+            review_number.append(author['author_review_number'])
+            changes_per_week.append(author['author_changes_per_week'])
 
     change_number = median(change_number)
     review_number = median(review_number)

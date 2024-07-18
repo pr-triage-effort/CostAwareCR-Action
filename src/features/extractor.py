@@ -43,10 +43,15 @@ class Extractor:
 
         # Code features
         features.update(self.extract_author_features(pr))
+        # print(f'\t\tAuthor features extracted at: {round(time.time()-start_time,3)}s')
         features.update(self.extract_reviewer_features(pr))
+        # print(f'\t\tReviewer features extracted at: {round(time.time()-start_time,3)}s')
         features.update(self.extract_project_features(pr))
+        # print(f'\t\tProject features extracted at: {round(time.time()-start_time,3)}s')
         features.update(self.extract_text_features(pr))
+        # print(f'\t\tText features extracted at: {round(time.time()-start_time,3)}s')
         features.update(self.extract_code_features(pr))
+        # print(f'\t\tCode features extracted at: {round(time.time()-start_time,3)}s')
 
         print(f"\t ({self.feature_cache.get('users').get(pr.user.login, {}).get('type', None)}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
 
@@ -57,7 +62,6 @@ class Extractor:
 
     def extract_author_features(self, pr: PullRequest) -> dict:
         return author_features(pr, self.gApi, self.feature_cache)
-
 
     def extract_project_features(self, pr: PullRequest) -> dict:
         return project_features(pr, self.gApi, self.feature_cache)

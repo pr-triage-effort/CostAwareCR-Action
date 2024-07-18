@@ -12,6 +12,7 @@ from features.extractor import Extractor
 
 PR_LIMIT = 50
 PR_OFFSET = 0
+
 def analysis_script():
     load_dotenv(override=True)
     analysis_cnt = 1

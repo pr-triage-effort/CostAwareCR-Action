@@ -12,7 +12,7 @@ def is_bot_user(username: str, repo_name: str) -> bool:
     return False
 
 def is_user_reviewer(pr: PullRequest, user: NamedUser):
-    if user != pr.user.login:
+    if user.login != pr.user.login:
         # Check in requested list
         if user.login in pr.requested_reviewers:
             return True
@@ -20,7 +20,7 @@ def is_user_reviewer(pr: PullRequest, user: NamedUser):
         # Check through reviews
         reviews = pr.get_reviews()
         for review in reviews:
-            if review.user.login == user:
+            if review.user.login == user.login:
                 return True
 
     return False

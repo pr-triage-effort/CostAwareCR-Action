@@ -87,12 +87,9 @@ def get_reviewer_experience(pr: PullRequest, user: NamedUser, user_cache: dict) 
     experience = (latest_revision.date() - registration_date.date()).days / DAYS_PER_YEAR
 
     # Cache result
-    if user not in user_cache:
-        user_cache[username] = {
-            'author_experience': experience
-        }
-    else:
-        user_cache[username]['author_experience'] = experience
+    if user_cache.get(username) is None:
+        user_cache[username] = {}
+    user_cache[username]['author_experience'] = experience
 
     return experience
 
@@ -114,17 +111,15 @@ def get_reviewer_review_cnt(user: NamedUser, repo: Repository, user_cache: dict,
         reviews = 0
         prs = repo.get_pulls(state='closed')
         for pr in prs:
-            if pr.closed_at < user.created_at:
+            if pr.closed_at < start_date:
                 break
             if is_user_reviewer(pr, user):
                 reviews += 1
 
     # Cache result
-    if user not in user_cache:
-        user_cache[username] = {
-            'author_review_number': reviews
-        }
-    else:
-        user_cache[username]['author_review_number'] = reviews
+    if user_cache.get(username) is None:
+        user_cache[username] = {}
+    user_cache[username]['tag'] = 'reviewer'
+    user_cache[username]['author_review_number'] = reviews
 
     return reviews
