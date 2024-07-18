@@ -1,5 +1,9 @@
 name: PR Triage by Review Effort
-description: A Github Action that uses custom ML model to analyze the effort required to review a given PR in the repository.
+description: A Github Action that uses custom ML model to analyse the effort required to review a given PR in the repository.
+
+branding:
+  icon: git-pull-request
+  color: green
 
 inputs:
   github-token:
@@ -35,7 +39,7 @@ runs:
             ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-
 
     - name: Run Analysis
-      run: python src/analysis.py -u
+      run: python src/analysis.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
