@@ -40,7 +40,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
-        CACHE_RESET:  ${{ inputs.cache-reset }}
+        RESET_CACHE:  ${{ inputs.cache-reset }}
         PYTHONUNBUFFERED: 1
       
     - name: Upload ranking JSON as artifact
