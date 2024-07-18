@@ -2,6 +2,8 @@ import datetime
 from github import Github, GithubException, PaginatedList, Issue
 from github.PullRequest import PullRequest
 
+DEFAULT_MERGE_RATIO = 0.5
+
 def project_features(pr: PullRequest, gApi: Github, cache: dict) -> dict:
     features = {}
 
@@ -33,22 +35,27 @@ def project_features(pr: PullRequest, gApi: Github, cache: dict) -> dict:
     pr_authors = []
 
     for pull in pulls:
-        if pull.closed_at >= sixty_days_ago:
-            closed_prs += 1
-        else:
+        if pull.closed_at < sixty_days_ago:
             break
+        
+        closed_prs += 1
 
         # Check for merge
         if pull.merged:
             merged_prs += 1
 
         # Check for unique author
-        if pr_authors.count(pr.user.login) == 0:
-            pr_authors.append(pr.user.login)
+        if pr_authors.count(pull.user.login) == 0:
+            pr_authors.append(pull.user.login)
 
-    changes_per_week = closed_prs * (7/60)
-    changes_per_author = closed_prs / len(pr_authors)
-    merge_ratio = merged_prs / closed_prs
+    if closed_prs == 0:
+        changes_per_author = 0
+        changes_per_week = 0
+        merge_ratio = DEFAULT_MERGE_RATIO
+    else:
+        changes_per_author = closed_prs / len(pr_authors)
+        changes_per_week = closed_prs * (7/60)
+        merge_ratio = merged_prs / closed_prs
 
     # Cache results
     cache['project']['project_changes_per_week'] = changes_per_week
