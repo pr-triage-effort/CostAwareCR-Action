@@ -14,11 +14,12 @@ TIME_WINDOW_DAYS = 60
 def reviewer_features(pr: PullRequest, api: Github, cache: dict):
     # Cached author data
     user_cache = cache.get('users', {})
+    repo = pr.base.repo
 
     # Temp data
     requested_reviewers = pr.requested_reviewers
     reviews = pr.get_reviews()
-    repo_name = pr.base.repo.full_name.split('/')[1]
+    repo_name = repo.full_name.split('/')[1]
     bot_reviewers = 0
     human_reviewers = 0
     total_reviewer_experience = 0
@@ -37,7 +38,7 @@ def reviewer_features(pr: PullRequest, api: Github, cache: dict):
             # Experience
             total_reviewer_experience += get_reviewer_experience(pr, reviewer, user_cache)
             # Review count
-            total_reviewer_review_num += get_reviewer_review_cnt(reviewer, user_cache, api)
+            total_reviewer_review_num += get_reviewer_review_cnt(reviewer, repo, user_cache, api)
 
     # Reviewer features for posted reviews
     for review in reviews:
@@ -54,7 +55,7 @@ def reviewer_features(pr: PullRequest, api: Github, cache: dict):
             # Experience
             total_reviewer_experience += get_reviewer_experience(pr, reviewer, user_cache)
             # Review count
-            total_reviewer_review_num += get_reviewer_review_cnt(reviewer, user_cache, api)
+            total_reviewer_review_num += get_reviewer_review_cnt(reviewer, repo, user_cache, api)
 
     # Compute reviewer features
     avg_reviewer_experience = 0
@@ -115,7 +116,6 @@ def get_reviewer_review_cnt(user: NamedUser, repo: Repository, user_cache: dict,
         for pr in prs:
             if pr.closed_at < user.created_at:
                 break
-
             if is_user_reviewer(pr, user):
                 reviews += 1
 

@@ -1,12 +1,8 @@
-import functools
-import collections
-import operator
-
+import time
 from datetime import datetime, timedelta, timezone
 from statistics import median
-import time
 
-from github import Github, GithubException
+from github import Github
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
@@ -33,7 +29,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
     changes_per_week = author_cache.get('author_changes_per_week', None)
     global_merge_ratio = author_cache.get('author_merge_ratio', None)
     project_merge_ratio = author_cache.get('author_merge_ratio_in_project', None)
-    
+
     # If present, return results
     if None not in (experience, change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio):
         # if author_cache['last_update'] < (datetime.now(timezone.utc) - DATA_AGE_CUTOFF):
@@ -51,9 +47,10 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
     sixty_days_ago = now - timedelta(days=60)
 
     # Author experience
-    registration_date = author.created_at
-    latest_revision = pr.created_at
-    experience = (latest_revision.date() - registration_date.date()).days / 365.25
+    if experience is None:
+        registration_date = author.created_at
+        latest_revision = pr.created_at
+        experience = (latest_revision.date() - registration_date.date()).days / 365.25
 
     if is_bot_user(author_name, pr.base.repo.full_name):
         change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio = bot_user_features(author, pr.base.repo, sixty_days_ago)
@@ -67,11 +64,12 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
         if change_number is None:
             change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio = private_user_features(author, pr.base.repo, sixty_days_ago, cache.get('users'))
             user_type = 'private'
-            
+
         else:
             # Author review number
-            review_number = api.search_issues(f"type:pr reviewed-by:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-            review_number += api.search_issues(f"type:pr review-requested:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
+            if review_number is None:
+                review_number = api.search_issues(f"type:pr reviewed-by:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
+                review_number += api.search_issues(f"type:pr review-requested:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
 
             # Author changes per week
             global_pr_closed = api.search_issues(f"author:{author_name} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
@@ -86,12 +84,22 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
                 global_merge_ratio = global_pr_merged /global_pr_closed
 
                 # Author project merge ratio
-                project_pr_closed = api.search_issues(f"author:{author_name} repo:{pr.base.repo.full_name} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-                if project_pr_closed == 0:
+                repo_pulls = pr.base.repo.get_pulls(state='closed')
+                proj_closed_pulls = 0
+                proj_merged_pulls = 0
+
+                for pull in repo_pulls:
+                    if pull.closed_at < sixty_days_ago:
+                        break
+                    if pull.user.login == author_name:
+                        proj_closed_pulls += 1
+                        if pull.merged:
+                            proj_merged_pulls += 1
+
+                if proj_closed_pulls == 0:
                     project_merge_ratio = DEFAULT_MERGE_RATIO
                 else:
-                    project_pr_merged = api.search_issues(f"author:{author_name} repo:{pr.base.repo.full_name} type:pr is:merged merged:{sixty_days_ago.date()}..{now.date()}").totalCount
-                    project_merge_ratio = project_pr_merged / project_pr_closed
+                    project_merge_ratio = proj_merged_pulls / proj_closed_pulls
 
     # Cache results
     if author not in cache['users']:
@@ -125,20 +133,17 @@ def bot_user_features(user: NamedUser, repo: Repository, time_limit: datetime):
 
     prs = repo.get_pulls()
     for pr in prs:
-        if pr.created_at < user.created_at:
-            break
-
+        # Change number
         if pr.user.login == user.login:
             change_number += 1
 
         if pr.state == 'closed' and pr.closed_at >= time_limit:
-            if pr.user.login == user.login:
+            if is_user_reviewer(pr, user):
+                review_number += 1
+            elif pr.user.login == user.login:
                 closed_prs += 1
                 if pr.merged:
                     merged_prs += 1
-
-            elif is_user_reviewer(pr, user):
-                review_number += 1
 
     if closed_prs > 0:
         changes_per_week = closed_prs * (7/60)
@@ -159,8 +164,8 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
     prs = repo.get_pulls(state='closed')
     for pr in prs:
         if pr.closed_at < time_limit:
-                break
-        
+            break
+
         if pr.user.login == user.login:
             closed_pr_num += 1
             if pr.merged:
@@ -173,8 +178,6 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
         project_merge_ratio = DEFAULT_MERGE_RATIO
 
     # Median of other authors
-    start = time.time()
-
     change_number = []
     review_number = []
     changes_per_week = []
