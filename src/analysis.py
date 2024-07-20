@@ -12,30 +12,31 @@ from features.extractor import Extractor
 
 PR_LIMIT = 50
 PR_OFFSET = 0
+
 def analysis_script():
     load_dotenv(override=True)
     analysis_cnt = 1
-    
+
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
-    cache_reset = os.environ.get("CHACHE_RESET")
+    cache_reset = os.environ.get("RESET_CACHE")
 
     features = []
     start_time = time.time()
 
-    # Init librarys
+    # Init libraries
     auth = Auth.Token(token)
-    gApi = Github(auth=auth)
-    extractor = Extractor(gApi, repo)
+    github_api = Github(auth=auth)
+    extractor = Extractor(github_api, repo)
     if cache_reset == 'false':
-        print('The cache will not be used')
+        print('Cached data will be used if available')
         if os.path.isfile('./cache.json'):
             extractor.set_cache('./cache.json')
 
     step_time = time_exec(start_time, "Init")
 
     # Get all opened pull requests
-    pull_requests = gApi.get_repo(full_name_or_id=repo).get_pulls(state="open")
+    pull_requests = github_api.get_repo(full_name_or_id=repo).get_pulls(state="open")
     for pull in pull_requests:
         # if analysis_cnt > PR_LIMIT:
         #     break
@@ -43,7 +44,7 @@ def analysis_script():
         if analysis_cnt < PR_OFFSET:
             analysis_cnt += 1
             continue
-        
+
         pr_feats = extractor.extract_features(pull, analysis_cnt)
         features.append(pr_feats)
         analysis_cnt += 1
