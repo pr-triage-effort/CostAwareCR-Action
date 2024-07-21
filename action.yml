@@ -21,10 +21,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Test inputs
-      run: echo "repo is ${{ inputs.repo }} | token is ${{ inputs.github-token }} | cache is ${{ inputs.cache-reset }}"
-      shell: bash
-
     - name: Checkout action
       uses: actions/checkout@v4
       with:
@@ -51,7 +47,7 @@ runs:
             ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-
 
     - name: Run Analysis
-      run: python src/analysis.py
+      run: python triage-action/src/analysis.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
