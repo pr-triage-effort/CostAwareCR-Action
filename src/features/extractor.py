@@ -75,19 +75,21 @@ class Extractor:
         }
 
         description = pr.body
-        feats['description_length'] = len(re.findall(r'\w+', description))
 
-        # TODO play with regex to include more keywords
-        keywords = ['doc, license, copyright, bug, fix, defect']
-        for word in keywords:
-            if re.search(rf'\b{re.escape(word)}\b', description, re.IGNORECASE):
-                match(word):
-                    case 'doc'|'license'|'copyright':
-                        feats["is_documentation"] = 1
-                        return feats
-                    case 'bug'|'fix'|'defect':
-                        feats["is_bug_fixing"] = 1
-                        return feats
+        if description is not None:
+            feats['description_length'] = len(re.findall(r'\w+', description))
+
+            # TODO play with regex to include more keywords
+            keywords = ['doc, license, copyright, bug, fix, defect']
+            for word in keywords:
+                if re.search(rf'\b{re.escape(word)}\b', description, re.IGNORECASE):
+                    match(word):
+                        case 'doc'|'license'|'copyright':
+                            feats["is_documentation"] = 1
+                            return feats
+                        case 'bug'|'fix'|'defect':
+                            feats["is_bug_fixing"] = 1
+                            return feats
 
         feats["is_feature"] = 1
         return feats

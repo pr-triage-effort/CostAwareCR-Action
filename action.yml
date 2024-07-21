@@ -10,8 +10,9 @@ inputs:
     description: 'Used for GitHub API access'
     required: true
   repo:
-    description: 'Repository to analyse'
-    required: true
+    description: 'Repository to analyze'
+    required: false
+    default: ${{ github.repository }}
   cache-reset:
     description: 'Empty cache before running'
     required: false
@@ -20,13 +21,20 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Checkout action
+      uses: actions/checkout@v4
+      with:
+        repository: 'pr-triage-effort/pr-triage-effort-action'
+        ref: 'dev'
+        path: 'triage-action'
+
     - name: Install Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10.14' 
     
     - name: Install Dependencies
-      run: pip install -r requirements.txt
+      run: pip install -r triage-action/requirements.txt
       shell: bash
 
     - name: Check for Cached Metrics
@@ -39,7 +47,7 @@ runs:
             ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-
 
     - name: Run Analysis
-      run: python src/analysis.py
+      run: python triage-action/src/analysis.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
