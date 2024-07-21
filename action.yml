@@ -22,6 +22,9 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Test inputs
+      run: echo "repo is ${{ inputs.repo }} | token is ${{ inputs.github-token }} | cache is ${{ inputs.cache-reset }}"
+
     - name: Install Python
       uses: actions/setup-python@v5
       with:
