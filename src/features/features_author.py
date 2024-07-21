@@ -190,8 +190,8 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
             review_number.append(author['author_review_number'])
             changes_per_week.append(author['author_changes_per_week'])
 
-    change_number = median(change_number)
-    review_number = median(review_number)
-    changes_per_week = median(changes_per_week)
-
+    change_number = median(change_number) if len(change_number) > 0 else 0
+    review_number = median(review_number) if len(review_number) > 0 else 0
+    changes_per_week = median(changes_per_week) if len(changes_per_week) > 0 else 0
+ 
     return [change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio]
