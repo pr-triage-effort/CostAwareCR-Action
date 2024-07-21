@@ -6,8 +6,9 @@ inputs:
     description: 'Used for GitHub API access'
     required: true
   repo:
-    description: 'Repository to analyse'
-    required: true
+    description: 'Repository to analyze'
+    required: false
+    default: ${{ github.repository }}
   cache-reset:
     description: 'Empty cache before running'
     required: false
