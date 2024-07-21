@@ -7,6 +7,7 @@ on:
       repo:
         description: 'repo to analyse'
         required: false
+        default: ${{ github.repository }}
 
 jobs:
   test-on-public:
@@ -19,4 +20,3 @@ jobs:
         uses: ./ # Uses an action in the root directory
         with:
           github-token: ${{ secrets.TEST_API_KEY }}
-          repo: ${{ inputs.repo }}
