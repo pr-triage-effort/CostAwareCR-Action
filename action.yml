@@ -8,7 +8,7 @@ branding:
 inputs:
   github-token:
     description: 'Used for GitHub API access'
-    required: false
+    required: true
   repo:
     description: 'Repository to analyze'
     required: false
@@ -23,11 +23,6 @@ runs:
   steps:
     - name: Test inputs
       run: echo "repo is ${{ inputs.repo }} | token is ${{ inputs.github-token }} | cache is ${{ inputs.cache-reset }}"
-      shell: bash
-
-    - name: Set Token if not provided
-      if: inputs.github-token == ''
-      run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
       shell: bash
 
     - name: Install Python
@@ -52,7 +47,7 @@ runs:
       run: python src/analysis.py
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token || env.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
         RESET_CACHE:  ${{ inputs.cache-reset }}
         PYTHONUNBUFFERED: 1
