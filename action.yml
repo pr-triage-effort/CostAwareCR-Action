@@ -25,6 +25,9 @@ runs:
       run: echo "repo is ${{ inputs.repo }} | token is ${{ inputs.github-token }} | cache is ${{ inputs.cache-reset }}"
       shell: bash
 
+    - name: Checkout action
+      uses: github/checkout@v5
+
     - name: Install Python
       uses: actions/setup-python@v5
       with:
