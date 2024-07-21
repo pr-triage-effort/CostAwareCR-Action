@@ -8,7 +8,8 @@ branding:
 inputs:
   github-token:
     description: 'Used for GitHub API access'
-    required: true
+    required: false
+    default: ${{ secrets.GITHUB_TOKEN }}
   repo:
     description: 'Repository to analyze'
     required: false
