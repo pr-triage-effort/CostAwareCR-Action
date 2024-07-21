@@ -1,5 +1,4 @@
 name: Test Action
-description: Workflow to manually test the GitHub action on any public repo
 
 on: 
   workflow_dispatch:
@@ -7,7 +6,6 @@ on:
       repo:
         description: 'repo to analyse'
         required: false
-        default: ${{ github.repository }}
 
 jobs:
   test-on-public:
