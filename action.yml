@@ -41,13 +41,13 @@ runs:
       id: cache-metrics
       uses: actions/cache@v3
       with:
-        path: ./cache.json
+        path: ./cache.db
         key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
         restore-keys: |
             ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
 
     - name: Run Analysis
-      run: python triage-action/src/v1/analysis.py
+      run: python triage-action/src/v2_sql/analysis.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
