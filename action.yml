@@ -42,12 +42,12 @@ runs:
       uses: actions/cache@v3
       with:
         path: ./cache.json
-        key: ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-${{ github.sha }}
+        key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
         restore-keys: |
-            ${{ runner.os }}-pr-analysis-${{ github.repository }}-${{ github.ref }}-
+            ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
 
     - name: Run Analysis
-      run: python triage-action/src/analysis.py
+      run: python triage-action/src/v1/analysis.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

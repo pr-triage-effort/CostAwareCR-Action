@@ -15,19 +15,12 @@ class Extractor:
     def __init__(self, gApi: Github, repo: str):
         self.gApi = gApi
         self.repo = repo
-        self.init_shared_deps()
-
+        
         # Cache
         self.feature_cache = {
             'users': {},
             'project': {}
         }         
-
-    def init_shared_deps(self):
-        # All repo closed PRS
-        # All repo opened PRS
-        # All repo merged PRS
-        pass
 
     def set_cache(self, file_path: str):
         with open(file_path, encoding="utf-8") as cache:

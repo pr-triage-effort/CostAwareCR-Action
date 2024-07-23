@@ -4,7 +4,11 @@ from github import Github ,GithubException
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 
-def is_bot_user(username: str, repo_name: str) -> bool:
+def is_bot_user(user: NamedUser, repo_name: str) -> bool:
+    if user.type == 'Bot':
+        return True
+
+    username = user.login
     bot_tags = ['do not use', 'bot', 'chatbot', 'ci', 'jenkins', repo_name]
     if any(map(username.lower().__contains__, bot_tags)):
         return True
