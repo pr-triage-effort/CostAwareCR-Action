@@ -32,7 +32,7 @@ class Analyzer:
                 pr_result = {
                     'title': pr['title'],
                     'number': pr['number'],
-                    'probability': predict_value(pr['features'], self.preprocessing_metadata, self.weights, self.rules)
+                    'effort': predict_value(pr['features'], self.preprocessing_metadata, self.weights, self.rules)
                 }
                 results.append(pr_result)
         else:
@@ -40,7 +40,7 @@ class Analyzer:
                 pr_result = {
                     'title': pr['title'],
                     'number': pr['number'],
-                    'probability': random.random()
+                    'effort': random.random()
                 }
                 results.append(pr_result)
 
