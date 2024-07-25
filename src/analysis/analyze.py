@@ -1,6 +1,9 @@
-import json
 import os
+import json
+
+from operator import itemgetter
 from dotenv import load_dotenv
+
 from analyzer import Analyzer
 
 
@@ -24,8 +27,10 @@ def main() -> None:
     analyzer = Analyzer(path)
     results = analyzer.analyze_prs(features)
 
+    ordered_results = sorted(results, key=itemgetter("effort"))
+
     # Write to file
-    write_to_json(results, "./results.json")
+    write_to_json(ordered_results, "./results.json")
 
 def write_to_json(data: list, path: str):
     with open(path, "w", encoding="utf-8") as output_file:
