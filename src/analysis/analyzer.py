@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 
-from ml_model.model_configs import FEATURES, NUMERICAL_FEATURES, BOOL_FEATURES, weights as w, rules as r
+from model_configs import FEATURES, NUMERICAL_FEATURES, BOOL_FEATURES, weights as w, rules as r
 
 class Analyzer:
     def __init__(self, path=None) -> None:
