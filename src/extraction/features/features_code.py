@@ -55,8 +55,8 @@ def code_features(pr: PullRequest):
     modify_entropy = entropy(entropy_pks, base=2)
 
     return {
-            'modified_directories': modified_directories,
-            'modify_entropy': modify_entropy,
+            'num_of_directory': modified_directories,
+            'modify_entropy': modify_entropy.item(),
             'lines_added': lines_added,
             'lines_deleted': lines_deleted,
             'files_modified': files_modified,

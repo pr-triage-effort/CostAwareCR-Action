@@ -34,22 +34,18 @@ def is_user_reviewer(pr: PullRequest, user: NamedUser):
 def try_get_total_prs(user: NamedUser, api: Github) -> int:
     try:
         change_num = api.search_issues(f"is:pr author:{user.login}").totalCount
-
     except GithubException as e:
         if e.status == 422:
             return None
-        raise e
-        
+
     return change_num
 
 def try_get_reviews_num(username: str, start_date: datetime, end_date: datetime, api: Github) -> int:
     try:
         review_number = api.search_issues(f"type:pr reviewed-by:{username} closed:{start_date.date()}..{end_date.date()}").totalCount
         review_number += api.search_issues(f"type:pr review-requested:{username} closed:{start_date.date()}..{end_date.date()}").totalCount
-
     except GithubException as e:
         if e.status == 422:
             return None
-        raise e
 
     return review_number

@@ -48,7 +48,7 @@ class Extractor:
 
         print(f"\t ({self.feature_cache.get('users').get(pr.user.login, {}).get('type', None)}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
 
-        return features
+        return {'title': pr.title, 'number': pr.number, 'features': features}
 
     def extract_reviewer_features(self, pr: PullRequest) -> dict:
         return reviewer_features(pr, self.gApi, self.feature_cache)

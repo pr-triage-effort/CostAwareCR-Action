@@ -39,7 +39,8 @@ class Extractor:
             user = db_get_user(pr.user.login, session)
             print(f"\t ({user.type}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
 
-        return features
+        # return features
+        return {'title': pr.title, 'number': pr.number, 'features': features}
 
     def extract_reviewer_features(self, pr: PullRequest) -> dict:
         return reviewer_features(pr, self.gApi, self.feature_cache)

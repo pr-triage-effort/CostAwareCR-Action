@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 
 from github import Github ,GithubException
 from github.NamedUser import NamedUser
@@ -38,7 +39,6 @@ def try_get_total_prs(user: NamedUser, api: Github) -> int:
     except GithubException as e:
         if e.status == 422:
             return None
-        raise e
         
     return change_num
 
@@ -50,6 +50,5 @@ def try_get_reviews_num(username: str, start_date: datetime, end_date: datetime,
     except GithubException as e:
         if e.status == 422:
             return None
-        raise e
 
     return review_number

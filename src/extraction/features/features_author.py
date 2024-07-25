@@ -43,8 +43,8 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
             # if author_cache['last_update'] < (datetime.now(timezone.utc) - DATA_AGE_CUTOFF):
             return {
                 'author_experience': experience,
-                'total_change_number': change_number,
-                'author_review_number': review_number,
+                'total_change_num': change_number,
+                'author_review_num': review_number,
                 'author_changes_per_week': changes_per_week,
                 'author_merge_ratio': global_merge_ratio,
                 'author_merge_ratio_in_project': project_merge_ratio
@@ -142,8 +142,8 @@ def author_features(pr: PullRequest, api: Github, cache: dict):
 
     return {
             'author_experience': experience,
-            'total_change_number': change_number,
-            'author_review_number': review_number,
+            'total_change_num': change_number,
+            'author_review_num': review_number,
             'author_changes_per_week': changes_per_week,
             'author_merge_ratio': global_merge_ratio,
             'author_merge_ratio_in_project': project_merge_ratio

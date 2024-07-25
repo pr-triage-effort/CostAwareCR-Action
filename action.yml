@@ -17,6 +17,10 @@ inputs:
     description: 'Empty cache before running'
     required: false
     default: 'false'
+  use-model:
+    description: use ml model or random num generator
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -34,7 +38,7 @@ runs:
         python-version: '3.10.14' 
     
     - name: Install Dependencies
-      run: pip install -r triage-action/requirements.txt
+      run: pip install -r triage-action/src/extraction/requirements.txt
       shell: bash
 
     - name: Check for Cached Metrics
@@ -47,12 +51,29 @@ runs:
             ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
 
     - name: Run Analysis
-      run: python triage-action/src/v2_sql/analysis.py
+      run: python triage-action/src/extraction/extract.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
         RESET_CACHE:  ${{ inputs.cache-reset }}
+        PYTHONUNBUFFERED: 1
+      
+    - name: Uninstall Python Dependencies
+      run: |
+        pip freeze > requirements_to_uninstall.txt
+        pip uninstall -r requirements_to_uninstall.txt -y
+      shell: bash
+
+    - name: Install Dependencies for Second Script
+      run: pip install -r triage-action/src/analysis/requirements.txt
+      shell: bash
+
+    - name: Run Second Analysis Script
+      run: python triage-action/src/analysis/analyze.py
+      shell: bash
+      env:
+        USE_MODEL: 'false'
         PYTHONUNBUFFERED: 1
       
     - name: Upload ranking JSON as artifact
