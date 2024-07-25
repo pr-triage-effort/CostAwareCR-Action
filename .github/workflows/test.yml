@@ -19,3 +19,4 @@ jobs:
         with:
           github-token: ${{ secrets.TEST_API_KEY }}
           repo: ${{ inputs.repo }}
+          use-model: 'false'

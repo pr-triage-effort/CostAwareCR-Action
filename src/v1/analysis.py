@@ -5,7 +5,7 @@ import time
 from operator import itemgetter
 from dotenv import load_dotenv
 
-from github import Github, Auth
+from github import Github, Auth, GithubRetry
 from ml_model import Analyzer
 from utils import time_exec
 from features.extractor import Extractor
@@ -26,7 +26,10 @@ def analysis_script():
 
     # Init libraries
     auth = Auth.Token(token)
-    github_api = Github(auth=auth)
+    retry = GithubRetry(backoff_factor=.25)
+    github_api = Github(auth=auth, retry=retry)
+
+
     extractor = Extractor(github_api, repo)
     if cache_reset == 'false':
         print('Cached data will be used if available')

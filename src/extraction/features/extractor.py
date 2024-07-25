@@ -4,6 +4,7 @@ import json
 
 from github import Github
 from github.PullRequest import PullRequest
+from db.db import Session, db_get_user
 
 from features.features_project import project_features
 from features.features_code import code_features
@@ -15,26 +16,7 @@ class Extractor:
     def __init__(self, gApi: Github, repo: str):
         self.gApi = gApi
         self.repo = repo
-        self.init_shared_deps()
-
-        # Cache
-        self.feature_cache = {
-            'users': {},
-            'project': {}
-        }         
-
-    def init_shared_deps(self):
-        # All repo closed PRS
-        # All repo opened PRS
-        # All repo merged PRS
-        pass
-
-    def set_cache(self, file_path: str):
-        with open(file_path, encoding="utf-8") as cache:
-            self.feature_cache = json.load(cache)
-
-    def get_cache_(self) -> dict:
-        return self.feature_cache
+        self.feature_cache = {}
 
     def extract_features(self, pr: PullRequest, nb: int) -> dict:
         features = {}
@@ -53,9 +35,12 @@ class Extractor:
         features.update(self.extract_code_features(pr))
         # print(f'\t\tCode features extracted at: {round(time.time()-start_time,3)}s')
 
-        print(f"\t ({self.feature_cache.get('users').get(pr.user.login, {}).get('type', None)}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
+        with Session() as session:
+            user = db_get_user(pr.user.login, session)
+            print(f"\t ({user.type}-user) Pr({nb}): {pr.title} | {round(time.time()-start_time,3)}s")
 
-        return features
+        # return features
+        return {'title': pr.title, 'number': pr.number, 'features': features}
 
     def extract_reviewer_features(self, pr: PullRequest) -> dict:
         return reviewer_features(pr, self.gApi, self.feature_cache)
@@ -64,7 +49,7 @@ class Extractor:
         return author_features(pr, self.gApi, self.feature_cache)
 
     def extract_project_features(self, pr: PullRequest) -> dict:
-        return project_features(pr, self.gApi, self.feature_cache)
+        return project_features(pr, self.gApi)
 
     def extract_text_features(self, pr: PullRequest) -> dict:
         feats = {

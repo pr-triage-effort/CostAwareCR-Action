@@ -69,4 +69,3 @@ def project_features(pr: PullRequest, gApi: Github, cache: dict) -> dict:
     }
 
     return features
-

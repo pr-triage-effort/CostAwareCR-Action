@@ -7,7 +7,7 @@ from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs
+from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs, try_get_reviews_num
 
 DEFAULT_MERGE_RATIO = 0.5
 # DATA_AGE_CUTOFF = timedelta(days=1)
@@ -23,7 +23,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
 
     # Try retrieve from cache
     author_cache = cache.get('users', {}).get(author_name, {})
-    experience = author_cache.get('total_change_number', None)
+    experience = author_cache.get('author_experience', None)
     change_number = author_cache.get('total_change_number', None)
     review_number = author_cache.get('author_review_number', None)
     changes_per_week = author_cache.get('author_changes_per_week', None)
@@ -52,7 +52,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
         latest_revision = pr.created_at
         experience = (latest_revision.date() - registration_date.date()).days / 365.25
 
-    if is_bot_user(author_name, pr.base.repo.full_name):
+    if is_bot_user(author, pr.base.repo.full_name):
         change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio = bot_user_features(author, pr.base.repo, sixty_days_ago)
         user_type = 'bot'
 
@@ -68,8 +68,7 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
         else:
             # Author review number
             if review_number is None:
-                review_number = api.search_issues(f"type:pr reviewed-by:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-                review_number += api.search_issues(f"type:pr review-requested:{author_name} closed:{sixty_days_ago.date()}..{now.date()}").totalCount
+                review_number = try_get_reviews_num(author_name, sixty_days_ago, now, api)
 
             # Author changes per week
             global_pr_closed = api.search_issues(f"author:{author_name} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
@@ -119,8 +118,8 @@ def author_features(pr: PullRequest, api: Github, cache: dict, diff_user: NamedU
 
     return {
             'author_experience': experience,
-            'total_change_number': change_number,
-            'author_review_number': review_number,
+            'total_change_num': change_number,
+            'author_review_num': review_number,
             'author_changes_per_week': changes_per_week,
             'author_merge_ratio': global_merge_ratio,
             'author_merge_ratio_in_project': project_merge_ratio
@@ -183,15 +182,20 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
     review_number = []
     changes_per_week = []
 
-    # TODO Issue when 
-    for author in author_cache.values():
-        if author['tag'] == 'author':
-            change_number.append(author['total_change_number'])
-            review_number.append(author['author_review_number'])
-            changes_per_week.append(author['author_changes_per_week'])
+    # TODO Need to push private user analysis to the end of queue
+    if len(author_cache.values()) > 0:
+        for author in author_cache.values():
+            if author['tag'] == 'author':
+                change_number.append(author['total_change_number'])
+                review_number.append(author['author_review_number'])
+                changes_per_week.append(author['author_changes_per_week'])
 
-    change_number = median(change_number) if len(change_number) > 0 else 0
-    review_number = median(review_number) if len(review_number) > 0 else 0
-    changes_per_week = median(changes_per_week) if len(changes_per_week) > 0 else 0
-    
+        change_number = median(change_number) if len(change_number) > 0 else 0
+        review_number = median(review_number) if len(review_number) > 0 else 0
+        changes_per_week = median(changes_per_week) if len(changes_per_week) > 0 else 0
+    else:
+        change_number = 0
+        review_number = 0
+        changes_per_week = 0
+ 
     return [change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio]
