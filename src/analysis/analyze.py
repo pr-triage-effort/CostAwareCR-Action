@@ -27,7 +27,7 @@ def main() -> None:
     analyzer = Analyzer(path)
     results = analyzer.analyze_prs(features)
 
-    ordered_results = sorted(results, key=itemgetter("effort"))
+    ordered_results = sorted(results, key=itemgetter("effort"), reverse=True)
 
     # Write to file
     write_to_json(ordered_results, "./results.json")
