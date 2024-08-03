@@ -1,15 +1,16 @@
 from datetime import datetime
-import time
 
 from github import Github ,GithubException
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
+from github.Repository import Repository
 
-def is_bot_user(user: NamedUser, repo_name: str) -> bool:
+def is_bot_user(user: NamedUser, repo: Repository) -> bool:
     if user.type == 'Bot':
         return True
 
     username = user.login
+    repo_name = repo.full_name.split('/')[1]
     bot_tags = ['do not use', 'bot', 'chatbot', 'ci', 'jenkins', repo_name]
     if any(map(username.lower().__contains__, bot_tags)):
         return True
@@ -19,8 +20,9 @@ def is_bot_user(user: NamedUser, repo_name: str) -> bool:
 def is_user_reviewer(pr: PullRequest, user: NamedUser):
     if user.login != pr.user.login:
         # Check in requested list
-        if user.login in pr.requested_reviewers:
-            return True
+        for reviewer in pr.requested_reviewers:
+            if user.login == reviewer.login:
+                return True
 
         # Check through reviews
         reviews = pr.get_reviews()
@@ -35,18 +37,16 @@ def is_user_reviewer(pr: PullRequest, user: NamedUser):
 def try_get_total_prs(user: NamedUser, api: Github) -> int:
     try:
         change_num = api.search_issues(f"is:pr author:{user.login}").totalCount
-
     except GithubException as e:
         if e.status == 422:
             return None
-        
+
     return change_num
 
 def try_get_reviews_num(username: str, start_date: datetime, end_date: datetime, api: Github) -> int:
     try:
         review_number = api.search_issues(f"type:pr reviewed-by:{username} closed:{start_date.date()}..{end_date.date()}").totalCount
         review_number += api.search_issues(f"type:pr review-requested:{username} closed:{start_date.date()}..{end_date.date()}").totalCount
-
     except GithubException as e:
         if e.status == 422:
             return None

@@ -1,8 +1,30 @@
-import math
+import time
+
 from scipy.stats import entropy
+from github import Github
 from github.PullRequest import PullRequest
 
-def code_features(pr: PullRequest):
+from db.db import Session, PrCode
+
+def code_features(api: Github, repo: str, pr_status: str):
+    start_time = time.time()
+
+    # Reset PrCode table
+    with Session() as session:
+        session.query(PrCode).delete()
+        session.commit()
+
+    pull_requests = api.get_repo(full_name_or_id=repo).get_pulls(state=pr_status)
+    code_feats = [extract_code_feature(pr) for pr in pull_requests]
+
+    with Session() as session:
+        session.add_all(code_feats)
+        session.commit()
+
+    print(f"Step: \"Code Features\" executed in {time.time() - start_time}s")
+
+
+def extract_code_feature(pr: PullRequest) -> PrCode:
     # Features
     modified_directories = 0
     modify_entropy = 0
@@ -18,6 +40,8 @@ def code_features(pr: PullRequest):
     bot_dir_changes = []
     entropy_pks = []
     total_modified_lines = lines_added + lines_deleted
+
+
 
     # Scan changed files
     for file in pr.get_files():
@@ -36,8 +60,9 @@ def code_features(pr: PullRequest):
                 bot_dir_changes.append(bottom)
 
         # PK ratio for entropy
-        file_pk = file.changes / total_modified_lines
-        entropy_pks.append(file_pk)
+        if total_modified_lines > 0 and file.changes > 0:
+            file_pk = file.changes / total_modified_lines
+            entropy_pks.append(file_pk)
 
         # File changes
         match file.status:
@@ -52,15 +77,18 @@ def code_features(pr: PullRequest):
     # Feature calc:
     modified_directories = len(bot_dir_changes)
     subsystem_num = len(top_dir_changed)
-    modify_entropy = entropy(entropy_pks, base=2)
+    modify_entropy = entropy(entropy_pks, base=2) if len(entropy_pks) > 0 else 0
 
-    return {
-            'modified_directories': modified_directories,
-            'modify_entropy': modify_entropy,
-            'lines_added': lines_added,
-            'lines_deleted': lines_deleted,
-            'files_modified': files_modified,
-            'files_added': files_added,
-            'files_deleted': files_deleted,
-            'subsystem_num': subsystem_num,
-        }
+    feats = PrCode(
+        num_of_directory = modified_directories,
+        modify_entropy = modify_entropy,
+        lines_added = lines_added,
+        lines_deleted = lines_deleted,
+        files_added = files_added,
+        files_deleted = files_deleted,
+        files_modified = files_modified,
+        subsystem_num = subsystem_num,
+        pr_num = pr.number
+    )
+
+    return feats

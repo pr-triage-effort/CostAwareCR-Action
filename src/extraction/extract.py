@@ -11,8 +11,6 @@ from features.extractor import Extractor
 # from ml_model.analyzer import Analyzer
 from utils import time_exec
 
-PR_OFFSET = 0
-
 def analysis_script():
     start_time = time.time()
 
@@ -43,11 +41,6 @@ def analysis_script():
 
     pull_requests = github_api.get_repo(full_name_or_id=repo).get_pulls(state="open")
     for pull in pull_requests:
-
-        if analysis_cnt < PR_OFFSET:
-            analysis_cnt += 1
-            continue
-
         pr_feats = extractor.extract_features(pull, analysis_cnt)
         features.append(pr_feats)
         analysis_cnt += 1
