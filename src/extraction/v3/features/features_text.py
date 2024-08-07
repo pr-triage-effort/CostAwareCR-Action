@@ -1,12 +1,10 @@
 import re
 import time
 
-from github import Github
 from github.PullRequest import PullRequest
-
 from db.db import Session, PrText
 
-def text_features(api: Github, repo: str, pr_status: str) -> PrText:
+def text_features(prs: list[PullRequest]) -> PrText:
     start_time = time.time()
 
     # Reset PrText table
@@ -14,8 +12,7 @@ def text_features(api: Github, repo: str, pr_status: str) -> PrText:
         session.query(PrText).delete()
         session.commit()
 
-    pull_requests = api.get_repo(full_name_or_id=repo).get_pulls(state=pr_status)
-    text_feats = [extract_text_feature(pr) for pr in pull_requests]
+    text_feats = [extract_text_feature(pr) for pr in prs]
 
     with Session() as session:
         session.add_all(text_feats)
@@ -23,30 +20,29 @@ def text_features(api: Github, repo: str, pr_status: str) -> PrText:
 
     print(f"Step: \"Text Features\" executed in {time.time() - start_time}s")
 
-
 def extract_text_feature(pr: PullRequest) -> PrText:
     description_length = 0
     is_documentation = 0
     is_bug_fixing = 0
     is_feature = 0
 
-    # TODO validate with client the change to title .vs description scanning
-    description = pr.title
+    description = pr.body
 
     if description is not None:
         description_length = len(re.findall(r'\w+', description))
 
-        # TODO play with regex to include more keywords
-        keywords = ['doc', 'docs', 'documentation', 'license', 'copyright', 'bug', 'fix', 'repair', 'defect']
-        for word in keywords:
-            if re.search(rf'\b{re.escape(word)}\b', description, re.IGNORECASE):
-                match(word):
-                    case 'doc'|'license'|'copyright':
-                        is_documentation = 1
-                    case 'bug'|'fix'|'defect':
-                        is_bug_fixing = 1
-
-                break
+    title = pr.title
+    doc_keywords = ['doc', 'docs', 'documentation', 'readme', 'license', 'copyright']
+    bug_keywords = ['bug', 'fix', 'repair', 'defect']
+    all_keywords = doc_keywords + bug_keywords
+    for word in all_keywords:
+        pattern = rf'(\b|\(|\[){re.escape(word)}(\b|\)|\]|:)'
+        if re.search(pattern, title, re.IGNORECASE):
+            if word in doc_keywords:
+                is_documentation = 1
+            elif word in bug_keywords:
+                is_bug_fixing = 1
+            break
 
     if (is_documentation+is_bug_fixing) == 0:
         is_feature = 1

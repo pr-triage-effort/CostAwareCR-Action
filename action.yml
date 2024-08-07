@@ -21,6 +21,12 @@ inputs:
     description: use ml model or random num generator
     required: false
     default: 'true'
+  max-age:
+    description: that max age before the previously cached data have to be discarded
+    required: false
+  history-window:
+    description: the time frame used in the computing of some data features
+    required: false
 
 runs:
   using: 'composite'
@@ -51,12 +57,14 @@ runs:
             ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
 
     - name: Run Analysis
-      run: python triage-action/src/extraction/extract.py
+      run: python triage-action/src/extraction/v3/extract.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
         RESET_CACHE:  ${{ inputs.cache-reset }}
+        MAX_AGE: ${{ inputs.max-age || '' }}
+        HISTORY_WINDOW: ${{ inputs.history-window. || '' }}
         PYTHONUNBUFFERED: 1
       
     - name: Uninstall Python Dependencies

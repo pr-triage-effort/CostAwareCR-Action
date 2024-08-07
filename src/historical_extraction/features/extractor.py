@@ -26,8 +26,8 @@ class Extractor:
         
         pr_status = 'closed' if hist_mode else 'open'
 
-        self.run_seq(repo_name, pr_status)
-        # self.run_parallel(repo_name, pr_status)
+        # self.run_seq(repo_name, pr_status)
+        self.run_parallel(repo_name, pr_status)
 
 
     def run_seq(self, repo_name: str, pr_status: str):
@@ -77,10 +77,10 @@ class Extractor:
         code_feat.start()
         text_feat.start()
         rev_feat.start()
+        author_feat.start()
 
         # Terminate finished processes
         rev_feat.join()
-        author_feat.start()
         text_feat.join()
         code_feat.join()
         proj_feat.join()

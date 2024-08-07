@@ -8,7 +8,7 @@ from github.Repository import Repository
 from db.db import Session, User, PrReviewers
 
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_reviews_num
-from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR
+from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DATETIME_NOW
 
 
 def reviewer_features(api: Github, repo: str, pr_status: str):
@@ -96,13 +96,11 @@ def get_reviewer_feats(pr: PullRequest, repo: Repository, user: NamedUser, api: 
 
     # Calc experience
     registration_date = user.created_at
-    latest_revision = pr.created_at
-    experience = (latest_revision.date() - registration_date.date()).days / DAYS_PER_YEAR
+    experience = (DATETIME_NOW.date() - registration_date.date()).days / DAYS_PER_YEAR
 
     # Calc review_num
-    now = datetime.now(timezone.utc)
-    start_date = now - timedelta(days=HISTORY_RANGE_DAYS)
-    reviews = try_get_reviews_num(username, start_date, now, api)
+    start_date = DATETIME_NOW - timedelta(days=HISTORY_RANGE_DAYS)
+    reviews = try_get_reviews_num(username, start_date, DATETIME_NOW, api)
 
     if reviews is None:
         reviews = 0

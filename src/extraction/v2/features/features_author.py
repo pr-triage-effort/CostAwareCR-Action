@@ -6,7 +6,7 @@ from github import Github
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
-from db.db import Session, User, db_get_user
+from db.db import Session, User, PullRequest as db_PR
 
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs, try_get_reviews_num
 from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO
