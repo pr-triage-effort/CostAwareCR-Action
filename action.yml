@@ -46,7 +46,7 @@ runs:
         python-version: '3.10.14' 
     
     - name: Install Dependencies
-      run: pip install -r triage-action/src/extraction/requirements.txt
+      run: pip install -r triage-action/src/extraction/v3/requirements.txt
       shell: bash
 
     - name: Check for Cached Metrics
