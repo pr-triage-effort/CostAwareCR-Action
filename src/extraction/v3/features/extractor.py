@@ -45,13 +45,13 @@ class Extractor:
         code_feat.start()
         text_feat.start()
         rev_feat.start()
-        author_feat.start()
 
         # Terminate finished processes
         text_feat.join()
         code_feat.join()
         proj_feat.join()
         rev_feat.join()
+        author_feat.start()
         author_feat.join()
 
     def db_cleanup(self, prs: list[PullRequest]):
