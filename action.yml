@@ -39,7 +39,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: 'pr-triage-effort/pr-triage-effort-action'
-        ref: 'main'
+        ref: 'dev'
         path: 'triage-action'
 
     - name: Install Python
@@ -48,7 +48,7 @@ runs:
         python-version: '3.10.14' 
     
     - name: Install Dependencies
-      run: pip install -r triage-action/src/extraction/requirements.txt
+      run: pip install -r triage-action/src/extraction/v3/requirements.txt
       shell: bash
 
     - name: Check for Cached Metrics
