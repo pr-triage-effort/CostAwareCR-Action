@@ -53,7 +53,7 @@ runs:
 
     - name: Check for Cached Metrics
       id: cache-metrics
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ./cache.db
         key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
