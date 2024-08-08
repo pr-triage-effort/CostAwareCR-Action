@@ -19,9 +19,9 @@ def author_features(api: Github, prs: list[PullRequest]) -> None:
     start_time = time.time()
 
     for pr in prs:
-        step_time = time.time()
+        # step_time = time.time()
         extract_author_feature(api, pr)
-        print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
+        # print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
 
     # Assign private user features based on median
     step_time = time.time()
@@ -31,7 +31,6 @@ def author_features(api: Github, prs: list[PullRequest]) -> None:
     print(f"Step: \"Author Features\" executed in {time.time() - start_time}s")
 
 def extract_author_feature(api: Github, pr: PullRequest):
-    author_exists = False
     author = pr.user
     repo = pr.base.repo
     pr_creation = pr.created_at
@@ -43,10 +42,15 @@ def extract_author_feature(api: Github, pr: PullRequest):
 
     # Return if info present
     if author_feat_pr or author_feat_sim:
-        author_exists = True
-        if author_feat_pr and DATETIME_NOW < author_feat_pr.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
-            return
-        elif author_feat_sim and DATETIME_NOW < author_feat_sim.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
+        if author_feat_pr: 
+            if DATETIME_NOW < author_feat_pr.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
+                return
+            else:
+                with Session() as session:
+                    session.delete(author_feat_pr)
+                    session.commit()
+
+        if author_feat_sim and DATETIME_NOW < author_feat_sim.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
             create_from_similar(pr, author_feat_sim)
             return
 
@@ -66,49 +70,8 @@ def extract_author_feature(api: Github, pr: PullRequest):
             author_feats = unknown_user_features(api, repo, author, pr_creation)
 
     # Save/Update session
-    with Session() as session:
-        if author_exists:
-            author_feat = session.get(PrAuthor, author_feat.id)
-            author_feat.type = author_feats['type']
-            author_feat.experience = experience
-            author_feat.total_change_number = author_feats['total_change_number']
-            author_feat.review_number = author_feats['review_number']
-            author_feat.changes_per_week = author_feats['changes_per_week']
-            author_feat.global_merge_ratio = author_feats['global_merge_ratio']
-            author_feat.project_merge_ratio = author_feats['project_merge_ratio']
-        else:
-            author_feat = PrAuthor(
-                username=author.login,
-                type = author_feats['type'],
-                experience=experience,
-                review_number=author_feats['review_number'],
-                total_change_number = author_feats['total_change_number'],
-                changes_per_week = author_feats['changes_per_week'],
-                global_merge_ratio = author_feats['global_merge_ratio'],
-                project_merge_ratio = author_feats['project_merge_ratio'],
-                pr_date = pr_creation.date(),
-                pr_num = pr.number,
-            )
-            session.add(author_feat)
+    create_from_feats(pr, author_feats, experience)
 
-        session.commit()
-
-def create_from_similar(pr: PullRequest, copy: PrAuthor):
-    with Session() as session:
-        author_feat = PrAuthor(
-                username=copy.username,
-                type = copy.type,
-                experience=copy.experience,
-                review_number=copy.review_number,
-                total_change_number = copy.total_change_number,
-                changes_per_week = copy.changes_per_week,
-                global_merge_ratio = copy.global_merge_ratio,
-                project_merge_ratio = copy.project_merge_ratio,
-                pr_date = pr.created_at.date(),
-                pr_num = pr.number,
-            )
-        session.add(author_feat)
-        session.commit()
 
 def bot_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
     time_limit = fr_date - HISTORY_WINDOW
@@ -276,3 +239,37 @@ def unknown_user_features(api: Github, repo: Repository, author: NamedUser, fr_d
         'global_merge_ratio': global_merge_ratio,
         'project_merge_ratio': project_merge_ratio,
     }
+
+def create_from_feats(pr: PullRequest, feats: dict, experience: float):
+    with Session() as session:
+        author_feat = PrAuthor(
+            username=pr.user.login,
+            type = feats['type'],
+            experience=experience,
+            review_number=feats['review_number'],
+            total_change_number = feats['total_change_number'],
+            changes_per_week = feats['changes_per_week'],
+            global_merge_ratio = feats['global_merge_ratio'],
+            project_merge_ratio = feats['project_merge_ratio'],
+            pr_date = pr.created_at.date(),
+            pr_num = pr.number,
+        )
+        session.add(author_feat)
+        session.commit()
+
+def create_from_similar(pr: PullRequest, copy: PrAuthor):
+    with Session() as session:
+        author_feat = PrAuthor(
+                username=copy.username,
+                type = copy.type,
+                experience=copy.experience,
+                review_number=copy.review_number,
+                total_change_number = copy.total_change_number,
+                changes_per_week = copy.changes_per_week,
+                global_merge_ratio = copy.global_merge_ratio,
+                project_merge_ratio = copy.project_merge_ratio,
+                pr_date = pr.created_at.date(),
+                pr_num = pr.number,
+            )
+        session.add(author_feat)
+        session.commit()

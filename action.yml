@@ -1,4 +1,4 @@
-name: PR Triage by Review Effort
+`name: PR Triage by Review Effort
 description: A Github Action that uses custom ML model to analyse the effort required to review a given PR in the repository.
 
 branding:
@@ -6,27 +6,29 @@ branding:
   color: green
 
 inputs:
-  github-token:
+  github_token:
     description: 'Used for GitHub API access'
     required: true
   repo:
     description: 'Repository to analyze'
     required: false
     default: ${{ github.repository }}
-  cache-reset:
+  cache_reset:
     description: 'Empty cache before running'
     required: false
-    default: 'false'
-  use-model:
+  use_model:
     description: use ml model or random num generator
     required: false
-    default: 'true'
-  max-age:
+  discard_data_after:
     description: that max age before the previously cached data have to be discarded
     required: false
-  history-window:
+  history_window:
     description: the time frame used in the computing of some data features
     required: false
+  prefill_processes:
+    description: number of parallel processes used during the DB fill, the first time you run the action
+    required: false
+  
 
 runs:
   using: 'composite'
@@ -65,6 +67,7 @@ runs:
         RESET_CACHE:  ${{ inputs.cache-reset }}
         MAX_AGE: ${{ inputs.max-age || '' }}
         HISTORY_WINDOW: ${{ inputs.history-window. || '' }}
+        PREFILL_PROCESSES: ${{ inputs.prefill-processes || '' }} 
         PYTHONUNBUFFERED: 1
       
     - name: Uninstall Python Dependencies
@@ -81,8 +84,7 @@ runs:
       run: python triage-action/src/analysis/analyze.py
       shell: bash
       env:
-        USE_MODEL: 'false'
-        PYTHONUNBUFFERED: 1
+        USE_MODEL: ${{ inputs.use-model || '' }} 
       
     - name: Upload ranking JSON as artifact
       uses: actions/upload-artifact@v4

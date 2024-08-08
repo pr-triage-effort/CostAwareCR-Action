@@ -21,8 +21,12 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
 
     if code_feat is not None:
         last_update = code_feat.last_update.replace(tzinfo=timezone.utc)
-        if pr.updated_at or pr.updated_at < last_update:
+        if pr.updated_at < last_update:
             return
+        else:
+          with Session() as session:
+            session.delete(code_feat)
+            session.commit()
 
     # Features
     modified_directories = 0
@@ -41,7 +45,8 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
     total_modified_lines = lines_added + lines_deleted
 
     # Scan changed files
-    for file in pr.get_files():
+    files = list(pr.get_files())
+    for file in files:
         # Modified directories/subsystems
         file_path = file.filename
         split_path = file_path.split("/")
