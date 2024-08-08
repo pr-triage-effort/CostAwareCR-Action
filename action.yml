@@ -82,8 +82,9 @@ runs:
           echo "::set-output name=new-cache-key::${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}"
         else
           restored_key=${{ steps.cache-db-restore.outputs.cache-primary-key }}
+          restored_hash=$(echo $restored_key | awk -F'-' '{print $NF}')
           new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
-          if [[ "$restored_key" != *"$new_hash" ]]; then
+          if [ "$restored_hash" != "$new_hash" ]; then
             echo "Cache key has changed, updating..."
             echo "::set-output name=new-cache-key::${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}"
           else
