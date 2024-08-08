@@ -6,10 +6,10 @@ load_dotenv(override=True)
 
 # The number of days used to compile historical data for feature extraction
 HISTORY_LIMIT = True
-HISTORY_RANGE_DAYS = int(os.getenv('HISTORY_WINDOW', '60'))
+HISTORY_RANGE_DAYS = int(os.getenv('HISTORY_WINDOW') or '60')
 
 # Check the last update time before recomputing
-MAX_DATA_AGE = int(os.getenv('MAX_AGE', '1'))
+MAX_DATA_AGE = int(os.getenv('MAX_AGE') or '1')
 
 # Number of days in a year
 DAYS_PER_YEAR = 365.25

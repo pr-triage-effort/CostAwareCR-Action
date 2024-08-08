@@ -16,9 +16,11 @@ inputs:
   cache_reset:
     description: 'Empty cache before running'
     required: false
+    default: 'false'
   use_model:
     description: use ml model or random num generator
     required: false
+    default: 'true'
   discard_data_after:
     description: that max age before the previously cached data have to be discarded
     required: false
