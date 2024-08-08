@@ -79,8 +79,8 @@ class Extractor:
         # Bulk insert of data (DB empty)
         if last_update is None:
             closed_prs = list(self.api.get_repo(self.repo).get_pulls(state='closed', sort='created', direction='desc'))
-            initial_save_open_prs(open_prs)
-            initial_save_closed_prs(closed_prs)
+            initial_save_open_prs(open_prs, self.db_processes)
+            initial_save_closed_prs(closed_prs, self.db_processes)
             initial_upload = True
 
         with Session() as session:
