@@ -20,7 +20,7 @@ def project_features(repo: str) -> None:
     if project is not None:
         expiration = project.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW
         if DATETIME_NOW < expiration:
-            print(f"Project features computed in {time.time() - start_time}s")
+            print(f"Step: \"Project Features\" executed in {time.time() - start_time}s")
             return
         else:
             with Session() as session:
@@ -62,4 +62,4 @@ def project_features(repo: str) -> None:
         session.add(project)
         session.commit()
 
-    print(f"Project features computed in {time.time() - start_time}s")
+    print(f"Step: \"Project Features\" executed in {time.time() - start_time}s")

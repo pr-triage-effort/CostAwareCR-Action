@@ -51,14 +51,12 @@ runs:
       run: pip install -r triage-action/src/extraction/v3/requirements.txt
       shell: bash
 
-    - name: Check for Cached Metrics
+    - name: Restore Cached Metrics
       id: cache-metrics
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ./cache.db
         key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
-        restore-keys: |
-            ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
 
     - name: Run Analysis
       run: python triage-action/src/extraction/v3/extract.py
@@ -72,6 +70,12 @@ runs:
         PREFILL_PROCESSES: ${{ inputs.prefill_processes }} 
         PYTHONUNBUFFERED: 1
       
+    - name: Save/Update Cached Metrics
+      uses: actions/cache/save@v4
+      with:
+        path: ./cache.db
+        key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
+
     - name: Uninstall Python Dependencies
       run: |
         pip freeze > requirements_to_uninstall.txt

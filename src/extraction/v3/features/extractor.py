@@ -23,7 +23,24 @@ class Extractor:
         self.closed_prs = []
 
     def extract_features(self) -> None:
-        self.run_parallel()
+        # self.run_parallel()
+        self.run_seq()
+
+    def run_seq(self):
+        pull_requests = [pr for pr in self.open_prs if not pr.draft]
+
+        self.db_cleanup(pull_requests)
+        refetch = self.db_pr_state_refresh(pull_requests)
+
+        if refetch:
+           self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
+           pull_requests = [pr for pr in self.open_prs if not pr.draft]
+
+        project_features(self.repo)
+        text_features(pull_requests)
+        code_features(pull_requests)
+        reviewer_features(self.api, pull_requests)
+        author_features(self.api, pull_requests)
 
     def run_parallel(self):
         pull_requests = [pr for pr in self.open_prs if not pr.draft]
