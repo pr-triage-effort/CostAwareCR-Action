@@ -1,4 +1,4 @@
-`name: PR Triage by Review Effort
+name: PR Triage by Review Effort
 description: A Github Action that uses custom ML model to analyse the effort required to review a given PR in the repository.
 
 branding:
