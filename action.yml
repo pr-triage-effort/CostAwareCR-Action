@@ -79,17 +79,17 @@ runs:
         if [ "${{ steps.cache-db-restore.outputs.cache-primary-key }}" == "" ]; then
           echo "No cache hit, generating new cache key..."
           new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
-          echo "::set-output name=new-cache-key::${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}"
+          echo  "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
         else
           restored_key=${{ steps.cache-db-restore.outputs.cache-primary-key }}
           restored_hash=$(echo $restored_key | awk -F'-' '{print $NF}')
           new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
           if [ "$restored_hash" != "$new_hash" ]; then
             echo "Cache key has changed, updating..."
-            echo "::set-output name=new-cache-key::${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}"
+            echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
           else
             echo "Cache key is the same, no need to update."
-            echo "::set-output name=new-cache-key::"
+            echo "new-cache-key=" >> $GITHUB_OUTPUT
           fi
         fi
 
