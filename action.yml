@@ -65,9 +65,9 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_REPO:  ${{ inputs.repo }}
         RESET_CACHE:  ${{ inputs.cache-reset }}
-        MAX_AGE: ${{ inputs.max-age | '' }}
-        HISTORY_WINDOW: ${{ inputs.history-window. | '' }}
-        PREFILL_PROCESSES: ${{ inputs.prefill-processes | '' }} 
+        MAX_AGE: ${{ inputs.max-age }}
+        HISTORY_WINDOW: ${{ inputs.history-window }}
+        PREFILL_PROCESSES: ${{ inputs.prefill-processes }} 
         PYTHONUNBUFFERED: 1
       
     - name: Uninstall Python Dependencies
@@ -84,7 +84,7 @@ runs:
       run: python triage-action/src/analysis/analyze.py
       shell: bash
       env:
-        USE_MODEL: ${{ inputs.use-model | '' }} 
+        USE_MODEL: ${{ inputs.use-model }} 
       
     - name: Upload ranking JSON as artifact
       uses: actions/upload-artifact@v4
