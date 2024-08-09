@@ -5,7 +5,7 @@ on:
     inputs:
       repo:
         description: 'repo to analyse'
-        required: false
+        required: true
 
 jobs:
   test-on-public:
