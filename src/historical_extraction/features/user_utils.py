@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 
 from github import Github ,GithubException
@@ -6,7 +5,6 @@ from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-# TODO time execution
 def is_bot_user(user: NamedUser, repo: Repository) -> bool:
     if user.type == 'Bot':
         return True
@@ -14,10 +12,7 @@ def is_bot_user(user: NamedUser, repo: Repository) -> bool:
     username = user.login
     repo_name = repo.full_name.split('/')[1]
     bot_tags = ['do not use', 'bot', 'chatbot', 'ci', 'jenkins', repo_name]
-    bot_pattern = r'(-|^|\b)({})(-|$|\b)'.format('|'.join(bot_tags))
-    bot_regex = re.compile(bot_pattern)
-
-    if bot_regex.search(username):
+    if any(map(username.lower().__contains__, bot_tags)):
         return True
 
     return False

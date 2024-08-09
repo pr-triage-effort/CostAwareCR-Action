@@ -6,21 +6,30 @@ branding:
   color: green
 
 inputs:
-  github-token:
+  github_token:
     description: 'Used for GitHub API access'
     required: true
   repo:
     description: 'Repository to analyze'
     required: false
     default: ${{ github.repository }}
-  cache-reset:
+  cache_reset:
     description: 'Empty cache before running'
     required: false
     default: 'false'
-  use-model:
+  use_model:
     description: use ml model or random num generator
     required: false
     default: 'true'
+  discard_data_after:
+    description: that max age before the previously cached data have to be discarded
+    required: false
+  history_window:
+    description: the time frame used in the computing of some data features
+    required: false
+  prefill_processes:
+    description: number of parallel processes used during the DB fill, the first time you run the action
+    required: false
 
 runs:
   using: 'composite'
@@ -29,7 +38,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: 'pr-triage-effort/pr-triage-effort-action'
-        ref: 'main'
+        ref: 'dev'
         path: 'triage-action'
 
     - name: Install Python
@@ -41,24 +50,41 @@ runs:
       run: pip install -r triage-action/src/extraction/requirements.txt
       shell: bash
 
-    - name: Check for Cached Metrics
-      id: cache-metrics
-      uses: actions/cache@v3
+    - name: Restore Cached Metrics
+      id: cache-db-restore
+      uses: actions/cache/restore@v4
       with:
         path: ./cache.db
         key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
         restore-keys: |
-            ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-
+          ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-
+
 
     - name: Run Analysis
       run: python triage-action/src/extraction/extract.py
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_REPO:  ${{ inputs.repo }}
-        RESET_CACHE:  ${{ inputs.cache-reset }}
+        RESET_CACHE:  ${{ inputs.cache_reset }}
+        MAX_AGE: ${{ inputs.discard_data_after }}
+        HISTORY_WINDOW: ${{ inputs.history_window }}
+        PREFILL_PROCESSES: ${{ inputs.prefill_processes }} 
         PYTHONUNBUFFERED: 1
       
+    - name: Create New Cache Key
+      id: create-cache-key
+      run: |
+        new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
+        echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
+
+    - name: Save/Update Cached Metrics
+      if: steps.compare-cache.outputs.new-cache-key != ''
+      uses: actions/cache/save@v4
+      with:
+        path: ./cache.db
+        key: ${{ steps.create-cache-key.outputs.new-cache-key }}
+
     - name: Uninstall Python Dependencies
       run: |
         pip freeze > requirements_to_uninstall.txt
@@ -73,8 +99,7 @@ runs:
       run: python triage-action/src/analysis/analyze.py
       shell: bash
       env:
-        USE_MODEL: 'false'
-        PYTHONUNBUFFERED: 1
+        USE_MODEL: ${{ inputs.use-model }} 
       
     - name: Upload ranking JSON as artifact
       uses: actions/upload-artifact@v4

@@ -1,75 +1,65 @@
-import datetime
+import time
+from datetime import timedelta, timezone
 
 from github import Github
 from github.PullRequest import PullRequest
-from db.db import Session, Project, db_get_project
+from db.db import Session, Project, PullRequest as db_PR
+from features.config import HISTORY_RANGE_DAYS, MAX_DATA_AGE, DATETIME_NOW
 
-
+HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
+EXPIRY_WINDOW = timedelta(days=MAX_DATA_AGE)
 DEFAULT_MERGE_RATIO = 0.5
 
-def project_features(pr: PullRequest, gApi: Github) -> dict:
-    proj_name = pr.base.repo.full_name
-    features = {}
+def project_features(repo: str) -> None:
+    start_time = time.time()
 
     # Retrieve from db if present
     with Session() as session:
-        project = db_get_project(proj_name, session)
+        project = session.get(Project, repo)
 
     if project is not None:
-        return {
-            'project_changes_per_week': project.changes_per_week,
-            'changes_per_author': project.changes_per_author,
-            'project_merge_ratio': project.merge_ratio
-        }
+        expiration = project.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW
+        if DATETIME_NOW < expiration:
+            print(f"Step: \"Project Features\" executed in {time.time() - start_time}s")
+            return
+        else:
+            with Session() as session:
+                session.delete(project)
+                session.commit()
 
     # Latest 60-day window
-    now = datetime.datetime.now(datetime.timezone.utc)
-    sixty_days_ago = now - datetime.timedelta(days=60)
+    time_limit = DATETIME_NOW - HISTORY_WINDOW
 
-    # PRs closed in the last 60 days
-    pulls = gApi.get_repo(pr.base.repo.full_name).get_pulls(state='closed')
-
-    closed_prs = 0
-    merged_prs = 0
-    pr_authors = []
-
-    for pull in pulls:
-        if pull.closed_at < sixty_days_ago:
-            break
-
-        closed_prs += 1
-
-        # Check for merge
-        if pull.merged:
-            merged_prs += 1
-
-        # Check for unique author
-        if pr_authors.count(pull.user.login) == 0:
-            pr_authors.append(pull.user.login)
+    # Merge ratio and weekly metrics
+    with Session() as session:
+        query = session.query(db_PR).filter(
+            db_PR.state == 'closed',
+            db_PR.closed <= DATETIME_NOW,
+            db_PR.closed >= time_limit,
+        )
+        closed_prs = query.count()
+        merged_prs = query.where(db_PR.merged).count()
+        pr_authors = query.with_entities(db_PR.author).distinct().count()
 
     if closed_prs == 0:
         changes_per_author = 0
         changes_per_week = 0
         merge_ratio = DEFAULT_MERGE_RATIO
     else:
-        changes_per_author = closed_prs / len(pr_authors)
-        changes_per_week = closed_prs * (7/60)
+        changes_per_author = closed_prs / pr_authors
+        changes_per_week = closed_prs * (7/HISTORY_RANGE_DAYS)
         merge_ratio = merged_prs / closed_prs
 
     # Cache results
     with Session() as session:
         project = Project(
-            name = proj_name,
-            changes_per_week = changes_per_week, 
-            changes_per_author = changes_per_author, 
+            name = repo,
+            changes_per_week = changes_per_week,
+            changes_per_author = changes_per_author,
             merge_ratio = merge_ratio
         )
 
         session.add(project)
         session.commit()
-
-    return {
-        'project_changes_per_week': changes_per_week,
-        'changes_per_author': changes_per_author,
-        'project_merge_ratio': merge_ratio
-    }
+        
+    print(f"Step: \"Project Features\" executed in {time.time() - start_time}s")

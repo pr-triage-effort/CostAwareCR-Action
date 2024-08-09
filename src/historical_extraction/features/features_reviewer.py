@@ -1,22 +1,26 @@
 import time
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from github import Github
-from github.Repository import Repository
 from github.PullRequest import PullRequest
 from github.NamedUser import NamedUser
+from github.Repository import Repository
 from db.db import Session, User, PrReviewers
 
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_reviews_num
-from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DATETIME_NOW, MAX_DATA_AGE
+from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR
 
-HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
-EXPIRY_WINDOW = timedelta(days=MAX_DATA_AGE)
 
-def reviewer_features(api: Github, prs: list[PullRequest]):
+def reviewer_features(api: Github, repo: str, pr_status: str):
     start_time = time.time()
 
-    reviewer_feats = [extract_reviewer_feature(api, pr) for pr in prs]
+    # Reset PrCode table
+    with Session() as session:
+        session.query(PrReviewers).delete()
+        session.commit()
+
+    pull_requests = api.get_repo(full_name_or_id=repo).get_pulls(state=pr_status)
+    reviewer_feats = [extract_reviewer_feature(pr, api) for pr in pull_requests]
 
     with Session() as session:
         session.add_all(reviewer_feats)
@@ -24,7 +28,8 @@ def reviewer_features(api: Github, prs: list[PullRequest]):
 
     print(f"Step: \"Reviewer Features\" executed in {time.time() - start_time}s")
 
-def extract_reviewer_feature(api: Github, pr: PullRequest):
+
+def extract_reviewer_feature(pr: PullRequest, api: Github):
     # Temp data
     requested_reviewers = pr.requested_reviewers
     repo = pr.base.repo
@@ -74,37 +79,37 @@ def extract_reviewer_feature(api: Github, pr: PullRequest):
         pr_num = pr.number
     )
 
+
 def get_reviewer_feats(pr: PullRequest, repo: Repository, user: NamedUser, api: Github):
-    start_time = time.time()
-    user_exists = False
     username = user.login
     user_type = 'public'
 
     # Try retrieve from cache
     with Session() as session:
-        db_user = session.query(User).where(User.username == username).first()
+        db_user = session.query(User).where(User.username == username).one_or_none()
 
+    user_exists = False
     if db_user is not None:
         user_exists = True
-        expiration = db_user.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW
-        if DATETIME_NOW < expiration:
-            # print(f"\tReviewer \"{username}\" returned cached data | {time.time() - start_time}s")
+        if db_user.tag != 'E':
             return db_user.experience, db_user.review_number
 
     # Calc experience
     registration_date = user.created_at
-    experience = (DATETIME_NOW.date() - registration_date.date()).days / DAYS_PER_YEAR
+    latest_revision = pr.created_at
+    experience = (latest_revision.date() - registration_date.date()).days / DAYS_PER_YEAR
 
     # Calc review_num
-    limit_date = DATETIME_NOW - HISTORY_WINDOW
-    reviews = try_get_reviews_num(username, limit_date, DATETIME_NOW, api)
+    now = datetime.now(timezone.utc)
+    start_date = now - timedelta(days=HISTORY_RANGE_DAYS)
+    reviews = try_get_reviews_num(username, start_date, now, api)
 
     if reviews is None:
         reviews = 0
         user_type = 'private'
         prs = repo.get_pulls(state='closed')
         for pr in prs:
-            if pr.closed_at < limit_date:
+            if pr.closed_at < start_date:
                 break
             if is_user_reviewer(pr, user):
                 reviews += 1
@@ -112,14 +117,14 @@ def get_reviewer_feats(pr: PullRequest, repo: Repository, user: NamedUser, api: 
     with Session() as session:
         if user_exists:
             db_user = session.get(User, db_user.id)
+            db_user.tag = 'P'
             db_user.type = user_type
             db_user.experience = experience
             db_user.review_number = reviews
         else:
-            db_user = User(username=username, type=user_type, experience=experience, review_number=reviews)
+            db_user = User(username=username, tag='P', type=user_type, experience=experience, review_number=reviews)
             session.add(db_user)
 
         session.commit()
 
-    # print(f"\tReviewer \"{username}\" added/updated | {time.time() - start_time}s")
     return experience, reviews

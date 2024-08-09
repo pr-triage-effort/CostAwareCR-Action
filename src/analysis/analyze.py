@@ -10,7 +10,7 @@ from analyzer import Analyzer
 def main() -> None:
 
     load_dotenv(override=True)
-    use_model = os.environ.get("USE_MODEL")
+    use_model = os.getenv("USE_MODEL", 'true')
 
     features = []
     with open('./features.json') as cache:

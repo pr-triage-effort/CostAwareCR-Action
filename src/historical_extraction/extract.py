@@ -2,8 +2,10 @@ import os
 import json
 import time
 
+from operator import itemgetter
 from dotenv import load_dotenv
 from github import Github, Auth, GithubRetry
+from sqlalchemy.orm import Session
 
 from db.db import Session, init_db, Project, PullRequest
 from features.extractor import Extractor
@@ -16,32 +18,29 @@ def main():
     load_dotenv(override=True)
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
-    reset_cache = os.getenv("RESET_CACHE", 'false')
-    process_num = int(os.getenv('PREFILL_PROCESSES') or '2')
 
 
     # APIs
     auth = Auth.Token(token)
     retry = GithubRetry(backoff_factor=.25)
-    github_api = Github(auth=auth, retry=retry, per_page=100)
+    github_api = Github(auth=auth, retry=retry)
 
     # Modules
-    extractor = Extractor(github_api, repo, process_num)
+    extractor = Extractor(github_api, repo)
 
     #DB
-    init_db(reset_cache == 'true')
+    init_db()
 
     step_time = time_exec(start_time, "Init")
 
     # Extract Features
-    extractor.extract_features()
-
+    extractor.extract_features(repo_name=repo, hist_mode=False)
 
     step_time = time_exec(step_time, "Feature extract")
 
     # Dump features to json
     features = build_feature_dataset(repo)
-
+    write_to_json(features, "./features.json")
 
 
 def write_to_json(data: list, path: str):
@@ -53,14 +52,14 @@ def build_feature_dataset(repo: str):
 
     with Session() as session:
         project = session.query(Project).where(Project.name == repo).one()
-        prs = session.query(PullRequest).where(PullRequest.state == 'open').all()
+        prs = session.query(PullRequest).all()
         features = [build_pr_features(pr, project) for pr in prs]
 
     print(f"Dataset generation done in {time.time() - start_time}s")
     return features
 
 def build_pr_features(pr: PullRequest, project: Project):
-    author_feat = pr.author_feat
+    author = pr.author
     reviewer_feat = pr.reviewer_feat
     text_feat = pr.text_feat
     code_feat = pr.code_feat
@@ -68,14 +67,14 @@ def build_pr_features(pr: PullRequest, project: Project):
     return {
         'title': pr.title,
         'number': pr.number,
-        'merged': pr.merged,
+        'merged': False,
         'features': {
-            "author_experience": author_feat.experience,
-            "total_change_num": author_feat.total_change_number,
-            "author_review_num": author_feat.review_number,
-            "author_changes_per_week": author_feat.changes_per_week,
-            "author_merge_ratio": author_feat.global_merge_ratio,
-            "author_merge_ratio_in_project": author_feat.project_merge_ratio,
+            "author_experience": author.experience,
+            "total_change_num": author.total_change_number,
+            "author_review_num": author.review_number,
+            "author_changes_per_week": author.changes_per_week,
+            "author_merge_ratio": author.global_merge_ratio,
+            "author_merge_ratio_in_project": author.project_merge_ratio,
             "num_of_reviewers": reviewer_feat.humans,
             "num_of_bot_reviewers": reviewer_feat.bots,
             "avg_reviewer_experience": reviewer_feat.avg_experience,
@@ -98,6 +97,5 @@ def build_pr_features(pr: PullRequest, project: Project):
         }
     }
 
-
-if __name__ == "__main__":
+if __name__ == "__main__": 
     main()

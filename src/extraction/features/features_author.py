@@ -6,172 +6,104 @@ from github import Github
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
-from db.db import Session, User, db_get_user
+from sqlalchemy import func
 
+from db.db import Session, PrAuthor, PullRequest as db_PR
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs, try_get_reviews_num
+from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO, MAX_DATA_AGE, DATETIME_NOW
 
-DEFAULT_MERGE_RATIO = 0.5
-# DATA_AGE_CUTOFF = timedelta(days=1)
+HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
+EXPIRY_WINDOW = timedelta(days=MAX_DATA_AGE)
 
-def author_features(pr: PullRequest, api: Github, cache: dict):
-    user_type = 'public'
-    experience = None
-    change_number = None
-    review_number = None
-    changes_per_week = None
-    global_merge_ratio = None
-    project_merge_ratio = None
+def author_features(api: Github, prs: list[PullRequest]) -> None:
+    start_time = time.time()
 
-    # Author username
+    for pr in prs:
+        # step_time = time.time()
+        extract_author_feature(api, pr)
+        # print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
+
+    # Assign private user features based on median
+    step_time = time.time()
+    refresh_private_depended_stats()
+    print(f"Private dependent features updated in {time.time() - step_time}s")
+
+    print(f"Step: \"Author Features\" executed in {time.time() - start_time}s")
+
+def extract_author_feature(api: Github, pr: PullRequest):
     author = pr.user
-    author_name = author.login
+    repo = pr.base.repo
+    pr_creation = pr.created_at
 
     # Try retrieve from cache
     with Session() as session:
-        db_user = db_get_user(author_name, session)
+        author_feat_pr = session.query(PrAuthor).where(PrAuthor.pr_num == pr.number).one_or_none()
+        author_feat_sim = session.query(PrAuthor).where(PrAuthor.username == author.login).where(PrAuthor.pr_date == pr_creation.date()).first()
 
-    if db_user is not None:
-        experience = db_user.experience
-        change_number = db_user.total_change_number
-        review_number = db_user.review_number
-        changes_per_week = db_user.changes_per_week
-        global_merge_ratio = db_user.global_merge_ratio
-        project_merge_ratio = db_user.project_merge_ratio
-
-        # If present, return results
-        if None not in (experience, change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio):
-            # if author_cache['last_update'] < (datetime.now(timezone.utc) - DATA_AGE_CUTOFF):
-            return {
-                'author_experience': experience,
-                'total_change_num': change_number,
-                'author_review_num': review_number,
-                'author_changes_per_week': changes_per_week,
-                'author_merge_ratio': global_merge_ratio,
-                'author_merge_ratio_in_project': project_merge_ratio
-            }
-
-    # 60-day window
-    now = datetime.now(timezone.utc)
-    sixty_days_ago = now - timedelta(days=60)
-
-    # Author experience
-    if experience is None:
-        registration_date = author.created_at
-        latest_revision = pr.created_at
-        experience = (latest_revision.date() - registration_date.date()).days / 365.25
-
-    if is_bot_user(author, pr.base.repo.full_name):
-        change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio = bot_user_features(author, pr.base.repo, sixty_days_ago)
-        user_type = 'bot'
-
-    else:
-        # Author total change number (Will throw 422 and return None of user private)
-        change_number = try_get_total_prs(author, api)
-
-        # User with private profile
-        if change_number is None:
-            change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio = private_user_features(author, pr.base.repo, sixty_days_ago, cache.get('users'))
-            user_type = 'private'
-
-        else:
-            # Author review number
-            if review_number is None:
-                review_number = try_get_reviews_num(author_name, sixty_days_ago, now, api)
-
-            # Author changes per week
-            global_pr_closed = api.search_issues(f"author:{author_name} type:pr is:closed closed:{sixty_days_ago.date()}..{now.date()}").totalCount
-            changes_per_week = global_pr_closed * (7/60)
-
-            # Author global merge ratio
-            if global_pr_closed == 0:
-                global_merge_ratio = DEFAULT_MERGE_RATIO
-                project_merge_ratio = DEFAULT_MERGE_RATIO
+    # Return if info present
+    if author_feat_pr or author_feat_sim:
+        if author_feat_pr: 
+            if DATETIME_NOW < author_feat_pr.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
+                return
             else:
-                global_pr_merged = api.search_issues(f"author:{author_name} type:pr is:merged merged:{sixty_days_ago.date()}..{now.date()}").totalCount
-                global_merge_ratio = global_pr_merged /global_pr_closed
+                with Session() as session:
+                    session.delete(author_feat_pr)
+                    session.commit()
 
-                # Author project merge ratio
-                repo_pulls = pr.base.repo.get_pulls(state='closed')
-                proj_closed_pulls = 0
-                proj_merged_pulls = 0
+        if author_feat_sim and DATETIME_NOW < author_feat_sim.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
+            create_from_similar(pr, author_feat_sim)
+            return
 
-                for pull in repo_pulls:
-                    if pull.closed_at < sixty_days_ago:
-                        break
-                    if pull.user.login == author_name:
-                        proj_closed_pulls += 1
-                        if pull.merged:
-                            proj_merged_pulls += 1
+    # Experience
+    registration_date = author.created_at
+    experience = (pr_creation.date() - registration_date.date()).days / DAYS_PER_YEAR
 
-                if proj_closed_pulls == 0:
-                    project_merge_ratio = DEFAULT_MERGE_RATIO
-                else:
-                    project_merge_ratio = proj_merged_pulls / proj_closed_pulls
+    # Depending on user type, different processing
+    author_feats = {}
+    user_type = author_feat_pr.type if author_feat_pr else None
+    match(user_type):
+        case 'bot':
+            author_feats = bot_author_features(repo, author, pr_creation)
+        case 'private':
+            author_feats = private_author_features(repo, author, pr_creation)
+        case _:
+            author_feats = unknown_user_features(api, repo, author, pr_creation)
 
-    # Cache results
+    # Save/Update session
+    create_from_feats(pr, author_feats, experience)
+
+
+def bot_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
+    time_limit = fr_date - HISTORY_WINDOW
+    author_name = author.login
+
+    # closed/merged/total_changes
     with Session() as session:
-        db_user = db_get_user(author_name, session)
+        query = session.query(db_PR).filter(
+            db_PR.author == author.login,
+            db_PR.state == 'closed',
+            db_PR.closed <= fr_date,
+            db_PR.closed >= time_limit,
+        )
+        closed_prs = query.count()
+        merged_prs = query.where(db_PR.merged).count()
+        total_change_number = session.query(db_PR).where(db_PR.author == author_name).count()
+        rev_pr_nums = session.query(db_PR.number).filter(
+            db_PR.state == 'closed',
+            db_PR.closed <= fr_date,
+            db_PR.closed >= time_limit,
+        ).all()
+        rev_pr_nums = [pr.number for pr in rev_pr_nums]
 
-        if db_user is None:
-            db_user = User(
-                username = author_name,
-                tag = 'full',
-                type = user_type,
-                experience = experience,
-                total_change_number = change_number,
-                review_number = review_number,
-                changes_per_week = changes_per_week,
-                global_merge_ratio = global_merge_ratio,
-                project_merge_ratio = project_merge_ratio
-            )
-            session.add(db_user)
-        else:
-            db_user.tag = 'full'
-            db_user.type = user_type
-            db_user.experience = experience
-            db_user.total_change_number = change_number
-            db_user.review_number = review_number
-            db_user.changes_per_week = changes_per_week
-            db_user.global_merge_ratio = global_merge_ratio
-            db_user.project_merge_ratio = project_merge_ratio
-  
-        session.commit()
-
-    # Cache last update timestamp
-    # cache['users'][author_name]['last_update'] = datetime.now(timezone.utc)
-
-    return {
-            'author_experience': experience,
-            'total_change_num': change_number,
-            'author_review_num': review_number,
-            'author_changes_per_week': changes_per_week,
-            'author_merge_ratio': global_merge_ratio,
-            'author_merge_ratio_in_project': project_merge_ratio
-        }
-
-
-def bot_user_features(user: NamedUser, repo: Repository, time_limit: datetime):
-    change_number = 0
+    # review_num
     review_number = 0
-    closed_prs = 0
-    merged_prs = 0
-
-    prs = repo.get_pulls()
-    for pr in prs:
-        # Change number
-        if pr.user.login == user.login:
-            change_number += 1
-
-        if pr.state == 'closed' and pr.closed_at >= time_limit:
-            if is_user_reviewer(pr, user):
-                review_number += 1
-            elif pr.user.login == user.login:
-                closed_prs += 1
-                if pr.merged:
-                    merged_prs += 1
+    for pr_num in rev_pr_nums:
+        pr = repo.get_pull(pr_num)
+        if is_user_reviewer(pr, author):
+            review_number += 1
 
     if closed_prs > 0:
-        changes_per_week = closed_prs * (7/60)
+        changes_per_week = closed_prs * (7/HISTORY_RANGE_DAYS)
         project_merge_ratio = merged_prs / closed_prs
     else:
         changes_per_week = 0
@@ -179,44 +111,63 @@ def bot_user_features(user: NamedUser, repo: Repository, time_limit: datetime):
 
     global_merge_ratio = project_merge_ratio
 
-    return [change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio]
+    return {
+        'type': 'bot',
+        'total_change_number': total_change_number,
+        'review_number': review_number,
+        'changes_per_week': changes_per_week,
+        'global_merge_ratio': global_merge_ratio,
+        'project_merge_ratio': project_merge_ratio,
+    }
 
-def private_user_features(user: NamedUser, repo: Repository, time_limit: datetime, author_cache: dict):
+def private_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
     # Merge ratios
-    closed_pr_num = 0
-    merged_pr_num = 0
+    time_limit = fr_date - HISTORY_WINDOW
 
-    prs = repo.get_pulls(state='closed')
-    for pr in prs:
-        if pr.closed_at < time_limit:
-            break
-
-        if pr.user.login == user.login:
-            closed_pr_num += 1
-            if pr.merged:
-                merged_pr_num += 1
-
+    # Author project merge ratio
+    with Session() as session:
+        query = session.query(db_PR).filter(
+            db_PR.author == author.login,
+            db_PR.state == 'closed',
+            db_PR.closed <= fr_date,
+            db_PR.closed >= time_limit,
+        )
+        closed_pr_num = query.count()
+        merged_pr_num = query.where(db_PR.merged).count()
+        
     global_merge_ratio = DEFAULT_MERGE_RATIO
     if closed_pr_num > 0:
         project_merge_ratio = merged_pr_num / closed_pr_num
     else:
         project_merge_ratio = DEFAULT_MERGE_RATIO
 
-    # Median of other authors
+    return {
+        'type': 'private',
+        'total_change_number': None,
+        'review_number': None,
+        'changes_per_week': None,
+        'global_merge_ratio': global_merge_ratio,
+        'project_merge_ratio': project_merge_ratio,
+    }
+
+def refresh_private_depended_stats():
     change_number = []
     review_number = []
     changes_per_week = []
 
     with Session() as session:
-        authors = session.query(User).all()
-    
-    # TODO Need to push private user analysis to the end of queue
-    if len(authors) > 0:
-        for author in authors:
-            if author.tag == 'full':
-                change_number.append(author.total_change_number)
-                review_number.append(author.review_number)
-                changes_per_week.append(author.changes_per_week)
+        pub_authors = session.query(
+            PrAuthor.username,
+            func.avg(PrAuthor.total_change_number).label('avg_change_number'),
+            func.avg(PrAuthor.review_number).label('avg_review_number'),
+            func.avg(PrAuthor.changes_per_week).label('avg_changes_per_week')
+        ).where(PrAuthor.type == 'public').group_by(PrAuthor.username).all()
+
+    if len(pub_authors) > 0:
+        for author in pub_authors:
+            change_number.append(author.avg_change_number)
+            review_number.append(author.avg_review_number)
+            changes_per_week.append(author.avg_changes_per_week)
 
         change_number = median(change_number) if len(change_number) > 0 else 0
         review_number = median(review_number) if len(review_number) > 0 else 0
@@ -226,6 +177,99 @@ def private_user_features(user: NamedUser, repo: Repository, time_limit: datetim
         review_number = 0
         changes_per_week = 0
 
-    
- 
-    return [change_number, review_number, changes_per_week, global_merge_ratio, project_merge_ratio]
+    with Session() as session:
+        priv_authors = session.query(PrAuthor).where(PrAuthor.type == 'private').all()
+        for author in priv_authors:
+            author.total_change_number = change_number
+            author.review_number = review_number
+            author.changes_per_week = changes_per_week
+        session.commit()
+
+def unknown_user_features(api: Github, repo: Repository, author: NamedUser, fr_date: datetime):
+    author_name = author.login
+    time_limit = fr_date - HISTORY_WINDOW
+
+    # Detect bot user
+    if is_bot_user(author, repo):
+        return bot_author_features(repo, author, fr_date)
+
+    # Total changes created
+    total_change_number = try_get_total_prs(author, api)
+
+    # Detect private user (if private, a 422 error was thrown in try_get_total_prs)
+    if total_change_number is None:
+        return private_author_features(repo, author, fr_date)
+
+    # Reviews
+    review_number = try_get_reviews_num(author_name, time_limit, fr_date, api)
+
+    # Changes per week
+    global_pr_closed = api.search_issues(f"author:{author_name} type:pr is:closed closed:{time_limit.date()}..{fr_date.date()}").totalCount
+    changes_per_week = global_pr_closed * (7/HISTORY_RANGE_DAYS)
+
+    # Merge Ratios
+    if global_pr_closed == 0:
+        global_merge_ratio = DEFAULT_MERGE_RATIO
+        project_merge_ratio = DEFAULT_MERGE_RATIO
+    else:
+        global_pr_merged = api.search_issues(f"author:{author_name} type:pr is:merged merged:{time_limit.date()}..{fr_date.date()}").totalCount
+        global_merge_ratio = global_pr_merged /global_pr_closed
+
+        # Author project merge ratio
+        with Session() as session:
+            query = session.query(db_PR).filter(
+                db_PR.author == author_name,
+                db_PR.state == 'closed',
+                db_PR.closed <= fr_date,
+                db_PR.closed >= time_limit,
+            )
+            proj_closed_pulls = query.count()
+            proj_merged_pulls = query.where(db_PR.merged).count()
+
+        if proj_closed_pulls == 0:
+            project_merge_ratio = DEFAULT_MERGE_RATIO
+        else:
+            project_merge_ratio = proj_merged_pulls / proj_closed_pulls
+
+    return {
+        'type': 'public',
+        'total_change_number': total_change_number,
+        'review_number': review_number,
+        'changes_per_week': changes_per_week,
+        'global_merge_ratio': global_merge_ratio,
+        'project_merge_ratio': project_merge_ratio,
+    }
+
+def create_from_feats(pr: PullRequest, feats: dict, experience: float):
+    with Session() as session:
+        author_feat = PrAuthor(
+            username=pr.user.login,
+            type = feats['type'],
+            experience=experience,
+            review_number=feats['review_number'],
+            total_change_number = feats['total_change_number'],
+            changes_per_week = feats['changes_per_week'],
+            global_merge_ratio = feats['global_merge_ratio'],
+            project_merge_ratio = feats['project_merge_ratio'],
+            pr_date = pr.created_at.date(),
+            pr_num = pr.number,
+        )
+        session.add(author_feat)
+        session.commit()
+
+def create_from_similar(pr: PullRequest, copy: PrAuthor):
+    with Session() as session:
+        author_feat = PrAuthor(
+                username=copy.username,
+                type = copy.type,
+                experience=copy.experience,
+                review_number=copy.review_number,
+                total_change_number = copy.total_change_number,
+                changes_per_week = copy.changes_per_week,
+                global_merge_ratio = copy.global_merge_ratio,
+                project_merge_ratio = copy.project_merge_ratio,
+                pr_date = pr.created_at.date(),
+                pr_num = pr.number,
+            )
+        session.add(author_feat)
+        session.commit()

@@ -34,7 +34,8 @@ NUMERICAL_FEATURES = [
 ]
 BOOL_FEATURES = ['is_documentation', 'is_bug_fixing', 'is_feature']
 
-rules = OrderedDict([('rule_0_feature',
+rules = OrderedDict([
+             ('rule_0_feature',
               'changes_per_author <= 1.7841873168945312 & num_of_reviewers <= -1.0535237491130829'),
              ('rule_1_feature',
               'author_merge_ratio_in_project > -0.28733599185943604 & author_merge_ratio > 0.1102062426507473 & changes_per_author > -0.8458887934684753'),
