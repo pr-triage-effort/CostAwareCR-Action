@@ -134,7 +134,7 @@ def private_author_features(repo: Repository, author: NamedUser, fr_date: dateti
         )
         closed_pr_num = query.count()
         merged_pr_num = query.where(db_PR.merged).count()
-
+        
     global_merge_ratio = DEFAULT_MERGE_RATIO
     if closed_pr_num > 0:
         project_merge_ratio = merged_pr_num / closed_pr_num
