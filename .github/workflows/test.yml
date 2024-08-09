@@ -5,7 +5,7 @@ on:
     inputs:
       repo:
         description: 'repo to analyse'
-        required: false
+        required: true
 
 jobs:
   test-on-public:
@@ -17,6 +17,6 @@ jobs:
       - name: test action
         uses: ./ # Uses an action in the root directory
         with:
-          github_token: ${{ secrets.TEST_API_KEY }}
+          github_token: ${{ secrets.TEST_API_TOKEN_FRc }}
           repo: ${{ inputs.repo }}
           use_model: 'false'
