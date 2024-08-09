@@ -1,4 +1,4 @@
-# PR Review Analysis action
+# PR Triage by Review Effort action
 
 A GitHub Action to analyze the currently opened pull requests in a repository and reorder them by their merge probability and review priority.
 
@@ -53,7 +53,7 @@ This configuration contains a single job with one step that will run each time a
 
 ### Workflow trigger
 
-The PR Review Analysis action expects to be run in the context of a `pull_request` webhook event that targets the main branch. It ensures that the workflow is run each time a pull request is opened, reopened, its contents edited, a draft PR is marked as ready for review or changes have been committed to the base branch.
+The PR Triage by Review Effort action expects to be run in the context of a `pull_request` webhook event that targets the main branch. It ensures that the workflow is run each time a pull request is opened, reopened, its contents edited, a draft PR is marked as ready for review or changes have been committed to the base branch.
 
 ```yaml
 on:
@@ -85,7 +85,7 @@ on:
 ```
 
 ### Permissions
-When using the default `GITHUB_TOKEN` provided automatically at the start of each workflow run, you need to manually provide the required permissions in the workflow file. The PR Review Analysis action needs write access for the `contents`,`attestations` and `pull-requests` scopes. If you are using a personal access token (PAT), you need to configure those permissions in the repository settings and add it to you secrets. See the [GitHub documentation][permission-scopes] for more info.
+When using the default `GITHUB_TOKEN` provided automatically at the start of each workflow run, you need to manually provide the required permissions in the workflow file. The PR Triage by Review Effort action needs write access for the `contents`,`attestations` and `pull-requests` scopes. If you are using a personal access token (PAT), you need to configure those permissions in the repository settings and add it to you secrets. See the [GitHub documentation][permission-scopes] for more info.
 
 ```yaml
 permissions:
