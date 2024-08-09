@@ -48,7 +48,7 @@ runs:
         python-version: '3.10.14' 
     
     - name: Install Dependencies
-      run: pip install -r triage-action/src/extraction/v3/requirements.txt
+      run: pip install -r triage-action/src/extraction/requirements.txt
       shell: bash
 
     - name: Restore Cached Metrics
@@ -61,7 +61,7 @@ runs:
           ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-
 
     - name: Run Analysis
-      run: python triage-action/src/extraction/v3/extract.py
+      run: python triage-action/src/extraction/extract.py
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -72,33 +72,18 @@ runs:
         PREFILL_PROCESSES: ${{ inputs.prefill_processes }} 
         PYTHONUNBUFFERED: 1
       
-    - name: Check if Cache Needs Updating
-      id: compare-cache
-      shell: bash
+    - name: Create New Cache Key
+      id: create-cache-key
       run: |
-        if [ "${{ steps.cache-db-restore.outputs.cache-primary-key }}" == "" ]; then
-          echo "No cache hit, generating new cache key..."
-          new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
-          echo  "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
-        else
-          restored_key=${{ steps.cache-db-restore.outputs.cache-primary-key }}
-          restored_hash=$(echo $restored_key | awk -F'-' '{print $NF}')
-          new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
-          if [ "$restored_hash" != "$new_hash" ]; then
-            echo "Cache key has changed, updating..."
-            echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
-          else
-            echo "Cache key is the same, no need to update."
-            echo "new-cache-key=" >> $GITHUB_OUTPUT
-          fi
-        fi
+        new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
+        echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
 
     - name: Save/Update Cached Metrics
       if: steps.compare-cache.outputs.new-cache-key != ''
       uses: actions/cache/save@v4
       with:
         path: ./cache.db
-        key: ${{ steps.compare-cache.outputs.new-cache-key }}
+        key: ${{ steps.create-cache-key.outputs.new-cache-key }}
 
     - name: Uninstall Python Dependencies
       run: |
