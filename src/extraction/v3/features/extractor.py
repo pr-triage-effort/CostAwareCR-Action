@@ -96,8 +96,8 @@ class Extractor:
         # Bulk insert of data (DB empty)
         if last_update is None:
             closed_prs = list(self.api.get_repo(self.repo).get_pulls(state='closed', sort='created', direction='desc'))
-            initial_save_open_prs(open_prs, self.db_processes)
-            initial_save_closed_prs(closed_prs, self.db_processes)
+            initial_save_prs(open_prs, self.db_processes, 'Open')
+            initial_save_prs(closed_prs, self.db_processes, 'Closed')
             initial_upload = True
 
         with Session() as session:
@@ -138,10 +138,11 @@ class Extractor:
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
         return initial_upload
 
-def initial_save_open_prs(open_prs: list[PullRequest], process_num: int):
+def initial_save_prs(prs: list[PullRequest], process_num: int, pr_type: str):
     start = time.time()
-    num_prs = len(open_prs)
-    batch_size = ceil(num_prs / process_num)
+    num_prs = len(prs)
+    # batch_size = ceil(num_prs / process_num)
+    batch_size = 100
 
     # Parallel processing
     pool = mp.Pool(processes=process_num)
@@ -149,10 +150,11 @@ def initial_save_open_prs(open_prs: list[PullRequest], process_num: int):
     db_prs = manager.list()
 
     def collect_result(result):
+        print(f"\t{len(result)} PRs saved in {time.time() - start}s")
         db_prs.extend(result)
 
-    for i in range(0, len(open_prs), batch_size):
-        pr_batch = open_prs[i:i + batch_size]
+    for i in range(0, len(prs), batch_size):
+        pr_batch = prs[i:i + batch_size]
         pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
 
     pool.close()
@@ -163,35 +165,7 @@ def initial_save_open_prs(open_prs: list[PullRequest], process_num: int):
             session.add_all(db_prs)
             session.commit()
 
-    print(f"\t{num_prs} Open PRs processed in {time.time() - start}s")
-
-
-def initial_save_closed_prs(closed_prs: list[PullRequest], process_num: int):
-    start = time.time()
-    num_prs = len(closed_prs)
-    batch_size = ceil(num_prs / process_num)
-
-    # Parallel processing
-    pool = mp.Pool(processes=process_num)
-    manager = mp.Manager()
-    db_prs = manager.list()
-
-    def collect_result(result):
-        db_prs.extend(result)
-
-    for i in range(0, len(closed_prs), batch_size):
-        pr_batch = closed_prs[i:i + batch_size]
-        pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
-
-    pool.close()
-    pool.join()
-
-    with Session() as session:
-        if db_prs:
-            session.add_all(db_prs)
-            session.commit()
-
-    print(f"\t{num_prs} Closed PRs processed in {time.time() - start}s")
+    print(f"\t{num_prs} {pr_type} PRs processed in {time.time() - start}s")
 
 def db_create_pr_batch(pr_batch: list[PullRequest]):
     return [create_pr_obj(pr) for pr in pr_batch]
