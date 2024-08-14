@@ -17,7 +17,7 @@ def main():
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
     reset_cache = os.getenv("RESET_CACHE", 'false')
-    process_num = int(os.getenv('PREFILL_PROCESSES') or '2')
+    # process_num = int(os.getenv('PREFILL_PROCESSES') or '2')
 
 
     # APIs
@@ -26,7 +26,7 @@ def main():
     github_api = Github(auth=auth, retry=retry, per_page=100)
 
     # Modules
-    extractor = Extractor(github_api, repo, process_num)
+    extractor = Extractor(github_api, repo)
 
     #DB
     init_db(reset_cache == 'true')

@@ -2,12 +2,15 @@ import time
 import multiprocessing as mp
 from datetime import timezone, timedelta
 from math import ceil
+from typing import List
 
 from github import Github
 from github.PullRequest import PullRequest
+from github.Repository import Repository
 from sqlalchemy import func
 
 from db.db import PrReviewers, Session, PullRequest as db_PR, PrText, PrCode, PrAuthor
+from features.config import LOAD_PROCESSES, LOAD_PAGES, LOAD_PRS
 from features.features_project import project_features
 from features.features_code import code_features
 from features.features_reviewer import reviewer_features
@@ -15,10 +18,10 @@ from features.features_author import  author_features
 from features.features_text import text_features
 
 class Extractor:
-    def __init__(self, api: Github, repo: str, load_processes: int):
+    def __init__(self, api: Github, repo: str):
         self.api = api
         self.repo = repo
-        self.db_processes = load_processes
+        # self.db_processes = load_processes
         self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
         self.closed_prs = []
 
@@ -30,7 +33,7 @@ class Extractor:
         pull_requests = [pr for pr in self.open_prs if not pr.draft]
 
         self.db_cleanup(pull_requests)
-        refetch = self.db_pr_state_refresh(pull_requests)
+        refetch = self.db_pr_state_refresh()
 
         if refetch:
            self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
@@ -46,7 +49,7 @@ class Extractor:
         pull_requests = [pr for pr in self.open_prs if not pr.draft]
 
         self.db_cleanup(pull_requests)
-        refetch = self.db_pr_state_refresh(pull_requests)
+        refetch = self.db_pr_state_refresh()
 
         if refetch:
            self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
@@ -85,9 +88,10 @@ class Extractor:
 
         print(f"Step: \"DB Cleanup\" executed in {time.time() - start_time}s")
 
-    def db_pr_state_refresh(self, open_prs: list[PullRequest]) -> bool:
+    def db_pr_state_refresh(self) -> bool:
         start_time = time.time()
-        latest_updated_rs = list(self.api.get_repo(self.repo).get_pulls(state='all', sort='updated', direction='desc'))
+        repo = self.api.get_repo(self.repo)
+        latest_updated = repo.get_pulls(state='all', sort='updated', direction='desc')
         initial_upload = False
 
         with Session() as session:
@@ -95,9 +99,8 @@ class Extractor:
 
         # Bulk insert of data (DB empty)
         if last_update is None:
-            closed_prs = list(self.api.get_repo(self.repo).get_pulls(state='closed', sort='created', direction='desc'))
-            initial_save_prs(open_prs, self.db_processes, 'Open')
-            initial_save_prs(closed_prs, self.db_processes, 'Closed')
+            self.initial_save_prs(repo, 'open')
+            self.initial_save_prs(repo, 'closed')
             initial_upload = True
 
         with Session() as session:
@@ -106,7 +109,7 @@ class Extractor:
 
             # Perform updates only
             last_update = last_update.replace(tzinfo=timezone.utc)
-            for pr in latest_updated_rs:
+            for pr in latest_updated:
                 if pr.updated_at < last_update - timedelta(days=1):
                     break
 
@@ -138,34 +141,69 @@ class Extractor:
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
         return initial_upload
 
-def initial_save_prs(prs: list[PullRequest], process_num: int, pr_type: str):
-    start = time.time()
-    num_prs = len(prs)
-    # batch_size = ceil(num_prs / process_num)
-    batch_size = 100
+    def initial_save_prs(self, repo: Repository, pr_status: str):
+        print(f"\tBeginning filling DB with {pr_status} PRs")
+        start = time.time()
+        total_prs = repo.get_pulls(state=pr_status).totalCount
+        total_pages = ceil(total_prs / self.api.per_page)
 
-    # Parallel processing
-    pool = mp.Pool(processes=process_num)
+        prs = []
+        for i in range(0, total_pages, LOAD_PAGES):
+            page = fetch_pr_pages(repo, pr_status, LOAD_PAGES, i)
+
+            # With Open PRs we ignore Drafts
+            if pr_status == 'open':
+                page = [pr for pr in page if not pr.draft]
+
+            prs.extend(page)
+
+        pool = mp.Pool(processes=LOAD_PROCESSES)
+        # batch_size = ceil(len(prs) / LOAD_PRS)
+        batch_size = LOAD_PRS
+
+        def collect_result(result):
+            if result:
+                with Session() as session:
+                    session.add_all(result)
+                    session.commit()
+                print(f"\t\t{len(result)} {pr_status} PRs saved in {time.time() - start}s")
+
+        for j in range(0, len(prs), batch_size):
+            pr_batch = prs[j:j + batch_size]
+            pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
+
+        pool.close()
+        pool.join()
+        print(f"\tDB filled with {pr_status} PRs in {time.time() - start}s")
+
+def fetch_all_pr_pages(repo: Repository, pr_status: str):
+    total_prs = repo.get_pulls(state=pr_status).totalCount
+    total_pages = ceil(total_prs / repo._requester.per_page)
+    
+    pool = mp.Pool(processes=LOAD_PROCESSES)
     manager = mp.Manager()
-    db_prs = manager.list()
+    prs = manager.list()
+    
+    for i in range(0, total_pages, LOAD_PAGES):
+        page = fetch_pr_pages(repo, pr_status, LOAD_PAGES, i)
 
-    def collect_result(result):
-        print(f"\t{len(result)} PRs saved in {time.time() - start}s")
-        db_prs.extend(result)
+        # With Open PRs we ignore Drafts
+        if pr_status == 'open':
+            page = [pr for pr in page if not pr.draft]
 
-    for i in range(0, len(prs), batch_size):
-        pr_batch = prs[i:i + batch_size]
-        pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
+        prs.extend(page)
 
-    pool.close()
-    pool.join()
+def fetch_pr_pages(repo: Repository, pr_status: str, pages: int, from_page: int, max_page: int) -> list[PullRequest]:
+    prs = repo.get_pulls(state=pr_status, sort='created', direction='desc')
 
-    with Session() as session:
-        if db_prs:
-            session.add_all(db_prs)
-            session.commit()
+    results = []
+    last_page = from_page + pages - 1
 
-    print(f"\t{num_prs} {pr_type} PRs processed in {time.time() - start}s")
+    while from_page <= last_page:
+        results.extend(prs.get_page(from_page))
+        from_page += 1
+
+    return results
 
 def db_create_pr_batch(pr_batch: list[PullRequest]):
     return [create_pr_obj(pr) for pr in pr_batch]

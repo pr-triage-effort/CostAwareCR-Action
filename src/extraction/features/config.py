@@ -19,3 +19,8 @@ DEFAULT_MERGE_RATIO = 0.5
 
 # Same current time reference for feature calculations
 DATETIME_NOW = datetime.now(timezone.utc)
+
+# DB Preload Config
+LOAD_PAGES = 5
+LOAD_PRS = 100
+LOAD_PROCESSES = int(os.getenv('PREFILL_PROCESSES') or '2')
