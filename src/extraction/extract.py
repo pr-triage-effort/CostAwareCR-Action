@@ -41,6 +41,7 @@ def main():
 
     # Dump features to json
     features = build_feature_dataset(repo)
+    write_to_json(features, "./features.json")
 
 
 
