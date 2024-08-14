@@ -36,11 +36,12 @@ def main():
     # Extract Features
     extractor.extract_features()
 
+
     step_time = time_exec(step_time, "Feature extract")
 
     # Dump features to json
     features = build_feature_dataset(repo)
-    write_to_json(features, "./features.json")
+
 
 
 def write_to_json(data: list, path: str):

@@ -61,5 +61,5 @@ def project_features(repo: str) -> None:
 
         session.add(project)
         session.commit()
-
+        
     print(f"Step: \"Project Features\" executed in {time.time() - start_time}s")
