@@ -1,17 +1,15 @@
 import time
 import multiprocessing as mp
-import numpy as np
+
 from datetime import timezone, timedelta, datetime
 from math import ceil
-from typing import List
-
 from github import Github
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 from sqlalchemy import func
 
 from db.db import PrReviewers, Session, PullRequest as db_PR, PrText, PrCode, PrAuthor
-from features.config import LOAD_PROCESSES, LOAD_PAGES, LOAD_PRS
+from features.config import LOAD_PROCESSES, LOAD_PRS
 from features.features_project import project_features
 from features.features_code import code_features
 from features.features_reviewer import reviewer_features
@@ -24,7 +22,6 @@ class Extractor:
         self.repo = repo
 
     def extract_features(self) -> None:
-        # self.run_parallel()
         self.run_seq()
 
     def run_seq(self):
@@ -32,7 +29,7 @@ class Extractor:
         self.db_pr_state_refresh()
 
         # Clean up feature DB tables
-        pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
+        pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='closed'))
         pull_requests = [pr for pr in pull_requests if not pr.draft]
         self.db_cleanup(pull_requests)
 
@@ -42,34 +39,6 @@ class Extractor:
         code_features(pull_requests)
         reviewer_features(self.api, pull_requests)
         author_features(self.api, pull_requests)
-
-    def run_parallel(self):
-        # Sync PR states with project
-        self.db_pr_state_refresh()
-
-        # Clean up feature DB tables
-        pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
-        pull_requests = [pr for pr in pull_requests if not pr.draft]
-        self.db_cleanup(pull_requests)
-
-        proj_feat = mp.Process(target=project_features, args=(self.repo,))
-        text_feat = mp.Process(target=text_features, args=(pull_requests,))
-        code_feat = mp.Process(target=code_features, args=(pull_requests,))
-        rev_feat = mp.Process(target=reviewer_features, args=(self.api, pull_requests))
-        author_feat = mp.Process(target=author_features, args=(self.api, pull_requests))
-
-        rev_feat.start()
-        code_feat.start()
-        proj_feat.start()
-        text_feat.start()
-
-        # Terminate finished processes
-        rev_feat.join()
-        author_feat.start()
-        code_feat.join()
-        text_feat.join()
-        proj_feat.join()
-        author_feat.join()
 
     def db_cleanup(self, prs: list[PullRequest]):
         start_time = time.time()

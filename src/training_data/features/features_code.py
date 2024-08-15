@@ -1,30 +1,33 @@
 import time
-
+from datetime import timezone
 from scipy.stats import entropy
-from github import Github
 from github.PullRequest import PullRequest
 
 from db.db import Session, PrCode
 
-def code_features(api: Github, repo: str, pr_status: str):
+def code_features(prs:list[PullRequest]):
     start_time = time.time()
 
-    # Reset PrCode table
-    with Session() as session:
-        session.query(PrCode).delete()
-        session.commit()
-
-    pull_requests = api.get_repo(full_name_or_id=repo).get_pulls(state=pr_status)
-    code_feats = [extract_code_feature(pr) for pr in pull_requests]
-
-    with Session() as session:
-        session.add_all(code_feats)
-        session.commit()
+    for pr in prs:
+        extract_code_feature(pr)
 
     print(f"Step: \"Code Features\" executed in {time.time() - start_time}s")
 
 
 def extract_code_feature(pr: PullRequest) -> PrCode:
+    # Try retrieve from cache
+    with Session() as session:
+        code_feat = session.query(PrCode).where(PrCode.pr_num == pr.number).one_or_none()
+
+    if code_feat is not None:
+        last_update = code_feat.last_update.replace(tzinfo=timezone.utc)
+        if pr.updated_at < last_update:
+            return
+        else:
+          with Session() as session:
+            session.delete(code_feat)
+            session.commit()
+
     # Features
     modified_directories = 0
     modify_entropy = 0
@@ -41,10 +44,9 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
     entropy_pks = []
     total_modified_lines = lines_added + lines_deleted
 
-
-
     # Scan changed files
-    for file in pr.get_files():
+    files = list(pr.get_files())
+    for file in files:
         # Modified directories/subsystems
         file_path = file.filename
         split_path = file_path.split("/")
@@ -70,7 +72,6 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
                 files_added += 1
             case "removed":
                 files_deleted += 1
-            # TODO Check definition of 'modified' with client
             case "modified" | "renamed" | "changed":
                 files_modified += 1
 
@@ -79,7 +80,7 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
     subsystem_num = len(top_dir_changed)
     modify_entropy = entropy(entropy_pks, base=2) if len(entropy_pks) > 0 else 0
 
-    feats = PrCode(
+    code_feat = PrCode(
         num_of_directory = modified_directories,
         modify_entropy = modify_entropy,
         lines_added = lines_added,
@@ -91,4 +92,6 @@ def extract_code_feature(pr: PullRequest) -> PrCode:
         pr_num = pr.number
     )
 
-    return feats
+    with Session() as session:
+        session.add(code_feat)
+        session.commit()
