@@ -103,7 +103,7 @@ class Extractor:
             # Perform updates only
             last_update = last_update.replace(tzinfo=timezone.utc)
             for pr in latest_updated:
-                since_step_start = datetime.now(timezone.utc) - datetime.fromtimestamp(start_time)
+                since_step_start = datetime.now(timezone.utc) - datetime.fromtimestamp(start_time, timezone.utc)
                 if pr.updated_at < (last_update - timedelta(seconds=since_step_start.seconds)):
                     break
 
