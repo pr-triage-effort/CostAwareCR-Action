@@ -74,6 +74,7 @@ runs:
       
     - name: Create New Cache Key
       id: create-cache-key
+      shell: bash
       run: |
         new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
         echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
