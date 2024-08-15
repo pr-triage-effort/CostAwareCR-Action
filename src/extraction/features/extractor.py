@@ -1,5 +1,6 @@
 import time
 import multiprocessing as mp
+import numpy as np
 from datetime import timezone, timedelta
 from math import ceil
 from typing import List
@@ -99,8 +100,8 @@ class Extractor:
 
         # Bulk insert of data (DB empty)
         if last_update is None:
-            self.initial_save_prs(repo, 'open')
-            self.initial_save_prs(repo, 'closed')
+            initial_save_prs(repo, 'open')
+            initial_save_prs(repo, 'closed')
             initial_upload = True
 
         with Session() as session:
@@ -141,66 +142,71 @@ class Extractor:
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
         return initial_upload
 
-    def initial_save_prs(self, repo: Repository, pr_status: str):
-        print(f"\tBeginning filling DB with {pr_status} PRs")
-        start = time.time()
-        total_prs = repo.get_pulls(state=pr_status).totalCount
-        total_pages = ceil(total_prs / self.api.per_page)
+TEST_PROC_NUM = 10
 
-        prs = []
-        for i in range(0, total_pages, LOAD_PAGES):
-            page = fetch_pr_pages(repo, pr_status, LOAD_PAGES, i)
+def initial_save_prs(repo: Repository, pr_status: str):
+    print(f"\tBeginning filling DB with {pr_status} PRs")
+    start = time.time()
 
-            # With Open PRs we ignore Drafts
-            if pr_status == 'open':
-                page = [pr for pr in page if not pr.draft]
+    # Get all PR refs and optionally filter drafts
+    prs = fetch_all_pr_pages(repo, pr_status)
 
-            prs.extend(page)
+    if pr_status == 'open':
+        prs = [pr for pr in prs if not pr.draft]
 
-        pool = mp.Pool(processes=LOAD_PROCESSES)
-        # batch_size = ceil(len(prs) / LOAD_PRS)
-        batch_size = LOAD_PRS
+    pool = mp.Pool(processes=LOAD_PROCESSES)
+    batch_size = LOAD_PRS
 
-        def collect_result(result):
-            if result:
-                with Session() as session:
-                    session.add_all(result)
-                    session.commit()
-                print(f"\t\t{len(result)} {pr_status} PRs saved in {time.time() - start}s")
+    def collect_result(result):
+        if result:
+            with Session() as session:
+                session.add_all(result)
+                session.commit()
+            print(f"\t\t{len(result)} {pr_status} PRs saved in {time.time() - start}s")
 
-        for j in range(0, len(prs), batch_size):
-            pr_batch = prs[j:j + batch_size]
-            pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
+    for j in range(0, len(prs), batch_size):
+        pr_batch = prs[j:j + batch_size]
+        pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
 
-        pool.close()
-        pool.join()
-        print(f"\tDB filled with {pr_status} PRs in {time.time() - start}s")
+    pool.close()
+    pool.join()
+    print(f"\tDB filled with {pr_status} PRs in {time.time() - start}s")
 
-def fetch_all_pr_pages(repo: Repository, pr_status: str):
+def fetch_all_pr_pages(repo: Repository, pr_status: str) -> list[PullRequest]:
+    start = time.time()
     total_prs = repo.get_pulls(state=pr_status).totalCount
     total_pages = ceil(total_prs / repo._requester.per_page)
-    
-    pool = mp.Pool(processes=LOAD_PROCESSES)
-    manager = mp.Manager()
-    prs = manager.list()
-    
-    for i in range(0, total_pages, LOAD_PAGES):
-        page = fetch_pr_pages(repo, pr_status, LOAD_PAGES, i)
+    pages_per_proc = ceil(total_pages/TEST_PROC_NUM)
 
-        # With Open PRs we ignore Drafts
-        if pr_status == 'open':
-            page = [pr for pr in page if not pr.draft]
+    pool = mp.Pool(processes=TEST_PROC_NUM)
+    results = []
 
-        prs.extend(page)
+    # Fetch
+    for j in range(0, total_pages, pages_per_proc):
+        result = pool.apply_async(fetch_pr_pages, (repo, pr_status, pages_per_proc, j, total_pages))
+        results.append(result)
 
-def fetch_pr_pages(repo: Repository, pr_status: str, pages: int, from_page: int, max_page: int) -> list[PullRequest]:
+    pool.close()
+    pool.join()
+
+    print(f"\t\tAll {pr_status} PR references fetched in {time.time() - start}s")
+
+    # Aggregate
+    prs = []
+    for r in results:
+        prs.extend(r.get())
+
+    return prs
+
+def fetch_pr_pages(repo: Repository, pr_status: str, pages_num: int, from_page: int, max_page: int) -> list[PullRequest]:
     prs = repo.get_pulls(state=pr_status, sort='created', direction='desc')
 
     results = []
-    last_page = from_page + pages - 1
+    last_page = from_page + pages_num - 1
 
-    while from_page <= last_page:
-        results.extend(prs.get_page(from_page))
+    while from_page <= max_page and from_page <= last_page:
+        page = prs.get_page(from_page)
+        results.extend(page)
         from_page += 1
 
     return results
