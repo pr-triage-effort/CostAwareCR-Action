@@ -1,7 +1,7 @@
 import time
 import multiprocessing as mp
 import numpy as np
-from datetime import timezone, timedelta
+from datetime import timezone, timedelta, datetime
 from math import ceil
 from typing import List
 
@@ -22,24 +22,21 @@ class Extractor:
     def __init__(self, api: Github, repo: str):
         self.api = api
         self.repo = repo
-        # self.db_processes = load_processes
-        self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
-        self.closed_prs = []
 
     def extract_features(self) -> None:
         # self.run_parallel()
         self.run_seq()
 
     def run_seq(self):
+        # Sync PR states with project
+        self.db_pr_state_refresh()
+
+        # Clean up feature DB tables
+        pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
         pull_requests = [pr for pr in self.open_prs if not pr.draft]
-
         self.db_cleanup(pull_requests)
-        refetch = self.db_pr_state_refresh()
 
-        if refetch:
-           self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
-           pull_requests = [pr for pr in self.open_prs if not pr.draft]
-
+        # Calc missing features
         project_features(self.repo)
         text_features(pull_requests)
         code_features(pull_requests)
@@ -47,14 +44,13 @@ class Extractor:
         author_features(self.api, pull_requests)
 
     def run_parallel(self):
+        # Sync PR states with project
+        self.db_pr_state_refresh()
+
+        # Clean up feature DB tables
+        pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
         pull_requests = [pr for pr in self.open_prs if not pr.draft]
-
         self.db_cleanup(pull_requests)
-        refetch = self.db_pr_state_refresh()
-
-        if refetch:
-           self.open_prs = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='open'))
-           pull_requests = [pr for pr in self.open_prs if not pr.draft]
 
         proj_feat = mp.Process(target=project_features, args=(self.repo,))
         text_feat = mp.Process(target=text_features, args=(pull_requests,))
@@ -62,17 +58,17 @@ class Extractor:
         rev_feat = mp.Process(target=reviewer_features, args=(self.api, pull_requests))
         author_feat = mp.Process(target=author_features, args=(self.api, pull_requests))
 
-        proj_feat.start()
-        code_feat.start()
-        text_feat.start()
         rev_feat.start()
+        code_feat.start()
+        proj_feat.start()
+        text_feat.start()
 
         # Terminate finished processes
-        text_feat.join()
-        code_feat.join()
-        proj_feat.join()
         rev_feat.join()
         author_feat.start()
+        code_feat.join()
+        text_feat.join()
+        proj_feat.join()
         author_feat.join()
 
     def db_cleanup(self, prs: list[PullRequest]):
@@ -89,11 +85,10 @@ class Extractor:
 
         print(f"Step: \"DB Cleanup\" executed in {time.time() - start_time}s")
 
-    def db_pr_state_refresh(self) -> bool:
+    def db_pr_state_refresh(self):
         start_time = time.time()
         repo = self.api.get_repo(self.repo)
         latest_updated = repo.get_pulls(state='all', sort='updated', direction='desc')
-        initial_upload = False
 
         with Session() as session:
             last_update = session.query(func.max(db_PR.last_update)).scalar() or None
@@ -102,16 +97,14 @@ class Extractor:
         if last_update is None:
             initial_save_prs(repo, 'open')
             initial_save_prs(repo, 'closed')
-            initial_upload = True
+            last_update = session.query(func.max(db_PR.last_update)).scalar()
 
         with Session() as session:
-            if initial_upload:
-                last_update = session.query(func.max(db_PR.last_update)).scalar()
-
             # Perform updates only
             last_update = last_update.replace(tzinfo=timezone.utc)
             for pr in latest_updated:
-                if pr.updated_at < last_update - timedelta(days=1):
+                since_step_start = datetime.now(timezone.utc) - datetime.fromtimestamp(start_time)
+                if pr.updated_at < (last_update - timedelta(seconds=since_step_start.seconds)):
                     break
 
                 pr_data = session.query(db_PR).filter_by(number=pr.number).first()
@@ -126,21 +119,12 @@ class Extractor:
                     if pr.state == 'open' and pr.draft:
                         continue
                     else:
-                        new_pr = db_PR(
-                            number=pr.number,
-                            title=pr.title,
-                            state=pr.state,
-                            merged=pr.merged,
-                            author=pr.user.login,
-                            created=pr.created_at,
-                            closed=pr.closed_at,
-                        )
+                        new_pr = create_pr_obj(pr)
                         session.add(new_pr)
 
             session.commit()
-
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
-        return initial_upload
+
 
 def initial_save_prs(repo: Repository, pr_status: str):
     print(f"\tBeginning filling DB with {pr_status} PRs")
