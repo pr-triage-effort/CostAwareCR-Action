@@ -142,8 +142,6 @@ class Extractor:
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
         return initial_upload
 
-TEST_PROC_NUM = 10
-
 def initial_save_prs(repo: Repository, pr_status: str):
     print(f"\tBeginning filling DB with {pr_status} PRs")
     start = time.time()
@@ -176,9 +174,9 @@ def fetch_all_pr_pages(repo: Repository, pr_status: str) -> list[PullRequest]:
     start = time.time()
     total_prs = repo.get_pulls(state=pr_status).totalCount
     total_pages = ceil(total_prs / repo._requester.per_page)
-    pages_per_proc = ceil(total_pages/TEST_PROC_NUM)
+    pages_per_proc = ceil(total_pages/LOAD_PROCESSES)
 
-    pool = mp.Pool(processes=TEST_PROC_NUM)
+    pool = mp.Pool(processes=LOAD_PROCESSES)
     results = []
 
     # Fetch
