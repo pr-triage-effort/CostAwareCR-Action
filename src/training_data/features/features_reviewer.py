@@ -5,13 +5,12 @@ from github import Github
 from github.Repository import Repository
 from github.PullRequest import PullRequest
 from github.NamedUser import NamedUser
-from db.db import Session, User, PrReviewers
+from db.db import Session, PrReviewer, PrReviewers
 
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_reviews_num
-from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DATETIME_NOW, MAX_DATA_AGE
+from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DATETIME_NOW
 
 HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
-EXPIRY_WINDOW = timedelta(days=MAX_DATA_AGE)
 
 def reviewer_features(api: Github, prs: list[PullRequest]):
     start_time = time.time()
@@ -74,52 +73,41 @@ def extract_reviewer_feature(api: Github, pr: PullRequest):
         pr_num = pr.number
     )
 
-def get_reviewer_feats(pr: PullRequest, repo: Repository, user: NamedUser, api: Github):
-    start_time = time.time()
-    user_exists = False
+def get_reviewer_feats(pull: PullRequest, repo: Repository, user: NamedUser, api: Github):
     username = user.login
     user_type = 'public'
+    close_date = pull.closed_at
 
     # Try retrieve from cache
     with Session() as session:
-        db_user = session.query(User).where(User.username == username).first()
+        db_user = session.query(PrReviewer).where(PrReviewer.username == username).where(PrReviewer.pr_date == close_date.date()).first()
 
     if db_user is not None:
-        user_exists = True
-        expiration = db_user.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW
-        if DATETIME_NOW < expiration:
-            # print(f"\tReviewer \"{username}\" returned cached data | {time.time() - start_time}s")
-            return db_user.experience, db_user.review_number
+        return db_user.experience, db_user.review_number
 
     # Calc experience
     registration_date = user.created_at
-    experience = (DATETIME_NOW.date() - registration_date.date()).days / DAYS_PER_YEAR
+    experience = (close_date.date() - registration_date.date()).days / DAYS_PER_YEAR
 
     # Calc review_num
-    limit_date = DATETIME_NOW - HISTORY_WINDOW
-    reviews = try_get_reviews_num(username, limit_date, DATETIME_NOW, api)
+    limit_date = close_date - HISTORY_WINDOW
+    reviews = try_get_reviews_num(username, limit_date, close_date, api)
 
     if reviews is None:
         reviews = 0
         user_type = 'private'
         prs = repo.get_pulls(state='closed')
         for pr in prs:
+            if pr.closed_at > close_date:
+                continue
             if pr.closed_at < limit_date:
                 break
             if is_user_reviewer(pr, user):
                 reviews += 1
 
     with Session() as session:
-        if user_exists:
-            db_user = session.get(User, db_user.id)
-            db_user.type = user_type
-            db_user.experience = experience
-            db_user.review_number = reviews
-        else:
-            db_user = User(username=username, type=user_type, experience=experience, review_number=reviews)
-            session.add(db_user)
-
+        db_user = PrReviewer(username=username, type=user_type, experience=experience, review_number=reviews, pr_date=close_date.date())
+        session.add(db_user)
         session.commit()
 
-    # print(f"\tReviewer \"{username}\" added/updated | {time.time() - start_time}s")
     return experience, reviews

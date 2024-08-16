@@ -49,18 +49,18 @@ def build_feature_dataset(repo: str):
     start_time = time.time()
 
     with Session() as session:
-        project = session.query(Project).where(Project.name == repo).one()
         prs = session.query(PullRequest).where(PullRequest.state == 'open').all()
-        features = [build_pr_features(pr, project) for pr in prs]
+        features = [build_pr_features(pr) for pr in prs]
 
     print(f"Dataset generation done in {time.time() - start_time}s")
     return features
 
-def build_pr_features(pr: PullRequest, project: Project):
+def build_pr_features(pr: PullRequest):
     author_feat = pr.author_feat
     reviewer_feat = pr.reviewer_feat
     text_feat = pr.text_feat
     code_feat = pr.code_feat
+    proj_feat = pr.project_feat
 
     return {
         'title': pr.title,
@@ -77,9 +77,9 @@ def build_pr_features(pr: PullRequest, project: Project):
             "num_of_bot_reviewers": reviewer_feat.bots,
             "avg_reviewer_experience": reviewer_feat.avg_experience,
             "avg_reviewer_review_count": reviewer_feat.avg_reviews,
-            "project_changes_per_week": project.changes_per_week,
-            "changes_per_author": project.changes_per_author,
-            "project_merge_ratio": project.merge_ratio,
+            "project_changes_per_week": proj_feat.changes_per_week,
+            "changes_per_author": proj_feat.changes_per_author,
+            "project_merge_ratio": proj_feat.merge_ratio,
             "description_length": text_feat.description_len,
             "is_documentation": text_feat.is_documentation,
             "is_bug_fixing": text_feat.is_bug_fixing,

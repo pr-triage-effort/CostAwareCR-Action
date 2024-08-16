@@ -10,18 +10,17 @@ from sqlalchemy import func
 
 from db.db import Session, PrAuthor, PullRequest as db_PR
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs, try_get_reviews_num
-from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO, MAX_DATA_AGE, DATETIME_NOW
+from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO, DATETIME_NOW
 
 HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
-EXPIRY_WINDOW = timedelta(days=MAX_DATA_AGE)
 
 def author_features(api: Github, prs: list[PullRequest]) -> None:
     start_time = time.time()
 
     for pr in prs:
-        # step_time = time.time()
+        step_time = time.time()
         extract_author_feature(api, pr)
-        # print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
+        print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
 
     # Assign private user features based on median
     step_time = time.time()
@@ -43,14 +42,9 @@ def extract_author_feature(api: Github, pr: PullRequest):
     # Return if info present
     if author_feat_pr or author_feat_sim:
         if author_feat_pr: 
-            if DATETIME_NOW < author_feat_pr.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
-                return
-            else:
-                with Session() as session:
-                    session.delete(author_feat_pr)
-                    session.commit()
+            return
 
-        if author_feat_sim and DATETIME_NOW < author_feat_sim.last_update.replace(tzinfo=timezone.utc) + EXPIRY_WINDOW:
+        if author_feat_sim:
             create_from_similar(pr, author_feat_sim)
             return
 

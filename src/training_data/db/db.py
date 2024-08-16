@@ -1,12 +1,10 @@
 import os
 from dotenv import load_dotenv
-
-from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey, CheckConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, DeclarativeBase, Session, relationship
+from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, DeclarativeBase, relationship
 
 load_dotenv(override=True)
 CACHE_RESET = os.environ.get("RESET_CACHE")
@@ -25,19 +23,22 @@ def init_db() -> None:
 class Base(DeclarativeBase):
     pass
 
-class Project(Base):
-    __tablename__ = 'projects'
+class PrProject(Base):
+    __tablename__ = 'project_feat'
 
-    name: Mapped[str] = mapped_column(primary_key=True, unique=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     changes_per_week: Mapped[float] = mapped_column(nullable=True)
     changes_per_author: Mapped[float] = mapped_column(nullable=True)
     merge_ratio: Mapped[float] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
-    def __status__(self) -> str:
-        return f"<Project(name={self.name}, cpw={self.changes_per_week}, cpa={self.changes_per_author}, mr={self.merge_ratio})>"
+    pr_num: Mapped[int] = mapped_column(ForeignKey('pull_requests.number'))
+    pr: Mapped['PullRequest'] = relationship(back_populates='project_feat')
 
-class User(Base):
+    def __status__(self) -> str:
+        return f"<Project(pr_num={self.pr_num}, cpw={self.changes_per_week}, cpa={self.changes_per_author}, mr={self.merge_ratio})>"
+
+class PrReviewer(Base):
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -45,6 +46,7 @@ class User(Base):
     type: Mapped[str] = mapped_column (nullable=True)
     experience: Mapped[float] = mapped_column(nullable=True)
     review_number: Mapped[int] = mapped_column(nullable=True)
+    pr_date: Mapped[date] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
 
@@ -140,6 +142,7 @@ class PullRequest(Base):
     reviewer_feat: Mapped[PrReviewers | None] = relationship(back_populates='pr')
     text_feat: Mapped[PrText | None] = relationship(back_populates='pr')
     code_feat: Mapped[PrCode | None] = relationship(back_populates='pr')
+    project_feat: Mapped[PrProject | None] = relationship(back_populates='pr')
 
     def __status__(self) -> str:
         return f"<PR(pr={self.number}, title={self.title}, state={self.state})>"

@@ -8,7 +8,7 @@ from github.PullRequest import PullRequest
 from github.Repository import Repository
 from sqlalchemy import func
 
-from db.db import PrReviewers, Session, PullRequest as db_PR, PrText, PrCode, PrAuthor
+from db.db import PrReviewers, Session, PullRequest as db_PR, PrText, PrCode, PrAuthor, PrProject
 from features.config import LOAD_PROCESSES, LOAD_PRS
 from features.features_project import project_features
 from features.features_code import code_features
@@ -30,7 +30,6 @@ class Extractor:
 
         # Clean up feature DB tables
         pull_requests = list(self.api.get_repo(full_name_or_id=self.repo).get_pulls(state='closed'))
-        pull_requests = [pr for pr in pull_requests if not pr.draft]
         self.db_cleanup(pull_requests)
 
         # Calc missing features
@@ -47,7 +46,8 @@ class Extractor:
         # Clear feature tables that must always be recalculated
         with Session() as session:
             session.query(PrText).delete()
-            session.query(PrReviewers).delete()
+            session.query(PrProject).delete()
+            session.query(PrReviewers).filter(~PrCode.pr_num.in_(prs_nums)).delete(synchronize_session='fetch')
             session.query(PrCode).filter(~PrCode.pr_num.in_(prs_nums)).delete(synchronize_session='fetch')
             session.query(PrAuthor).filter(~PrAuthor.pr_num.in_(prs_nums)).delete(synchronize_session='fetch')
             session.commit()
@@ -57,14 +57,13 @@ class Extractor:
     def db_pr_state_refresh(self):
         start_time = time.time()
         repo = self.api.get_repo(self.repo)
-        latest_updated = repo.get_pulls(state='all', sort='updated', direction='desc')
+        latest_updated = repo.get_pulls(state='closed', sort='updated', direction='desc')
 
         with Session() as session:
             last_update = session.query(func.max(db_PR.last_update)).scalar() or None
 
         # Bulk insert of data (DB empty)
         if last_update is None:
-            initial_save_prs(repo, 'open')
             initial_save_prs(repo, 'closed')
             last_update = session.query(func.max(db_PR.last_update)).scalar()
 
@@ -72,7 +71,7 @@ class Extractor:
             # Perform updates only
             last_update = last_update.replace(tzinfo=timezone.utc)
             for pr in latest_updated:
-                since_step_start = datetime.now(timezone.utc) - datetime.fromtimestamp(start_time)
+                since_step_start = datetime.now(timezone.utc) - datetime.fromtimestamp(start_time, timezone.utc)
                 if pr.updated_at < (last_update - timedelta(seconds=since_step_start.seconds)):
                     break
 
@@ -85,11 +84,8 @@ class Extractor:
                     pr_data.created = pr.created_at
                     pr_data.closed = pr.closed_at
                 else:
-                    if pr.state == 'open' and pr.draft:
-                        continue
-                    else:
-                        new_pr = create_pr_obj(pr)
-                        session.add(new_pr)
+                    new_pr = create_pr_obj(pr)
+                    session.add(new_pr)
 
             session.commit()
         print(f"Step: \"DB PR refresh\" executed in {time.time() - start_time}s")
@@ -99,15 +95,14 @@ def initial_save_prs(repo: Repository, pr_status: str):
     print(f"\tBeginning filling DB with {pr_status} PRs")
     start = time.time()
 
-    # Get all PR refs and optionally filter drafts
+    # Get all PR refs
     prs = fetch_all_pr_pages(repo, pr_status)
 
-    if pr_status == 'open':
-        prs = [pr for pr in prs if not pr.draft]
-
+    # Use multiprocess to fetch/load DB faster
     pool = mp.Pool(processes=LOAD_PROCESSES)
     batch_size = LOAD_PRS
 
+    # Callback
     def collect_result(result):
         if result:
             with Session() as session:
@@ -115,6 +110,7 @@ def initial_save_prs(repo: Repository, pr_status: str):
                 session.commit()
             print(f"\t\t{len(result)} {pr_status} PRs saved in {time.time() - start}s")
 
+    # Spawn processes
     for j in range(0, len(prs), batch_size):
         pr_batch = prs[j:j + batch_size]
         pool.apply_async(db_create_pr_batch, (pr_batch,), callback=collect_result)
@@ -139,14 +135,12 @@ def fetch_all_pr_pages(repo: Repository, pr_status: str) -> list[PullRequest]:
 
     pool.close()
     pool.join()
-
     print(f"\t\tAll {pr_status} PR references fetched in {time.time() - start}s")
 
     # Aggregate
     prs = []
     for r in results:
         prs.extend(r.get())
-
     return prs
 
 def fetch_pr_pages(repo: Repository, pr_status: str, pages_num: int, from_page: int, max_page: int) -> list[PullRequest]:
