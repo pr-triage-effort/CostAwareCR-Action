@@ -30,6 +30,10 @@ inputs:
   prefill_processes:
     description: number of parallel processes used during the DB fill, the first time you run the action
     required: false
+  db_path:
+    description: 'Path to the pre-existing SQLite database file in the repository (e.g., .github/scan/cache.db)'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -45,12 +49,26 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10.14' 
-    
+
     - name: Install Dependencies
       run: pip install -r triage-action/src/extraction/requirements.txt
       shell: bash
 
+    - name: Checkout project repository with DB file
+      if: ${{ inputs.db_file_path != '' }}
+      uses: actions/checkout@v4
+      with:
+        path: 'project-repo'
+
+    - name: Use Pre-existing Database
+      if: ${{ inputs.db_file_path != '' }}
+      run: |
+        echo "Skipping cache restore because db_file_path is provided."
+        mv project-repo/${{ inputs.db_file_path }} ./cache.db
+      shell: bash
+
     - name: Restore Cached Metrics
+      if: ${{ inputs.db_file_path == '' }}
       id: cache-db-restore
       uses: actions/cache/restore@v4
       with:
@@ -58,7 +76,6 @@ runs:
         key: ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}
         restore-keys: |
           ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-
-
 
     - name: Run Analysis
       run: python triage-action/src/extraction/extract.py
