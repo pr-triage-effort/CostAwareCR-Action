@@ -38,21 +38,26 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: test
+      shell: bash
+      run: |
+        echo "Path to db is ${{ inputs.db_path }}"
+
     - name: Checkout project repository with DB file
-      if: ${{ inputs.db_file_path != '' }}
+      if: ${{ inputs.db_path != '' }}
       uses: actions/checkout@v4
       with:
         path: 'project-repo'
 
     - name: Use Pre-existing Database
-      if: ${{ inputs.db_file_path != '' }}
+      if: ${{ inputs.db_path != '' }}
       run: |
-        echo "Skipping cache restore because db_file_path is provided."
-        mv project-repo/${{ inputs.db_file_path }} ./cache.db
+        echo "Skipping cache restore because db_path is provided."
+        mv project-repo/${{ inputs.db_path }} ./cache.db
       shell: bash
 
     - name: Restore Cached Metrics
-      if: ${{ inputs.db_file_path == '' }}
+      if: ${{ inputs.db_path == '' }}
       id: cache-db-restore
       uses: actions/cache/restore@v4
       with:
