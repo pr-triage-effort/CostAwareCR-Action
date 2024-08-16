@@ -97,7 +97,7 @@ runs:
         echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
 
     - name: Save/Update Cached Metrics
-      if: steps.compare-cache.outputs.new-cache-key != ''
+      if: steps.compare-cache.outputs.new-cache-key != '' || inputs.db_path != ''
       uses: actions/cache/save@v4
       with:
         path: ./cache.db
