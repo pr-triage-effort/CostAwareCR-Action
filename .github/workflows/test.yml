@@ -13,6 +13,8 @@ jobs:
     name: Runs analysis on specified repo
     timeout-minutes: 1440
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: test action
         uses: ./ # Uses an action in the root directory
         with:
