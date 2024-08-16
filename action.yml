@@ -54,6 +54,7 @@ runs:
       run: |
         echo "Skipping cache restore because db_path is provided."
         mv project-repo/${{ inputs.db_path }} ./cache.db
+        ls
       shell: bash
 
     - name: Restore Cached Metrics
