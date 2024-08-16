@@ -38,11 +38,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: test
-      shell: bash
-      run: |
-        echo "Path to db is ${{ inputs.db_path }}"
-
     - name: Checkout project repository with DB file
       if: ${{ inputs.db_path != '' }}
       uses: actions/checkout@v4
@@ -54,7 +49,6 @@ runs:
       run: |
         echo "Skipping cache restore because db_path is provided."
         mv project-repo/${{ inputs.db_path }} ./cache.db
-        ls
       shell: bash
 
     - name: Restore Cached Metrics
@@ -67,66 +61,66 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-
 
-    # - name: Checkout action repo
-    #   uses: actions/checkout@v4
-    #   with:
-    #     repository: 'pr-triage-effort/pr-triage-effort-action'
-    #     ref: 'dev'
-    #     path: 'triage-action'
+    - name: Checkout action repo
+      uses: actions/checkout@v4
+      with:
+        repository: 'pr-triage-effort/pr-triage-effort-action'
+        ref: 'dev'
+        path: 'triage-action'
 
-    # - name: Install Python
-    #   uses: actions/setup-python@v5
-    #   with:
-    #     python-version: '3.10.14' 
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10.14' 
 
-    # - name: Install Dependencies
-    #   run: pip install -r triage-action/src/extraction/requirements.txt
-    #   shell: bash
+    - name: Install Dependencies
+      run: pip install -r triage-action/src/extraction/requirements.txt
+      shell: bash
 
-    # - name: Run Analysis
-    #   run: python triage-action/src/extraction/extract.py
-    #   shell: bash
-    #   env:
-    #     GITHUB_TOKEN: ${{ inputs.github_token }}
-    #     GITHUB_REPO:  ${{ inputs.repo }}
-    #     RESET_CACHE:  ${{ inputs.cache_reset }}
-    #     MAX_AGE: ${{ inputs.discard_data_after }}
-    #     HISTORY_WINDOW: ${{ inputs.history_window }}
-    #     PREFILL_PROCESSES: ${{ inputs.prefill_processes }} 
-    #     PYTHONUNBUFFERED: 1
+    - name: Run Analysis
+      run: python triage-action/src/extraction/extract.py
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPO:  ${{ inputs.repo }}
+        RESET_CACHE:  ${{ inputs.cache_reset }}
+        MAX_AGE: ${{ inputs.discard_data_after }}
+        HISTORY_WINDOW: ${{ inputs.history_window }}
+        PREFILL_PROCESSES: ${{ inputs.prefill_processes }} 
+        PYTHONUNBUFFERED: 1
       
-    # - name: Create New Cache Key
-    #   id: create-cache-key
-    #   shell: bash
-    #   run: |
-    #     new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
-    #     echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
+    - name: Create New Cache Key
+      id: create-cache-key
+      shell: bash
+      run: |
+        new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
+        echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
 
-    # - name: Save/Update Cached Metrics
-    #   if: steps.compare-cache.outputs.new-cache-key != ''
-    #   uses: actions/cache/save@v4
-    #   with:
-    #     path: ./cache.db
-    #     key: ${{ steps.create-cache-key.outputs.new-cache-key }}
+    - name: Save/Update Cached Metrics
+      if: steps.compare-cache.outputs.new-cache-key != ''
+      uses: actions/cache/save@v4
+      with:
+        path: ./cache.db
+        key: ${{ steps.create-cache-key.outputs.new-cache-key }}
 
-    # - name: Uninstall Python Dependencies
-    #   run: |
-    #     pip freeze > requirements_to_uninstall.txt
-    #     pip uninstall -r requirements_to_uninstall.txt -y
-    #   shell: bash
+    - name: Uninstall Python Dependencies
+      run: |
+        pip freeze > requirements_to_uninstall.txt
+        pip uninstall -r requirements_to_uninstall.txt -y
+      shell: bash
 
-    # - name: Install Dependencies for Second Script
-    #   run: pip install -r triage-action/src/analysis/requirements.txt
-    #   shell: bash
+    - name: Install Dependencies for Second Script
+      run: pip install -r triage-action/src/analysis/requirements.txt
+      shell: bash
 
-    # - name: Run Second Analysis Script
-    #   run: python triage-action/src/analysis/analyze.py
-    #   shell: bash
-    #   env:
-    #     USE_MODEL: ${{ inputs.use-model }} 
+    - name: Run Second Analysis Script
+      run: python triage-action/src/analysis/analyze.py
+      shell: bash
+      env:
+        USE_MODEL: ${{ inputs.use-model }} 
       
-    # - name: Upload ranking JSON as artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: analysis-results
-    #     path: ./results.json
+    - name: Upload ranking JSON as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: analysis-results
+        path: ./results.json
