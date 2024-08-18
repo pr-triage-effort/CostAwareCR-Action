@@ -17,8 +17,6 @@ def main():
     token = os.environ.get("GITHUB_TOKEN")
     repo = os.environ.get("GITHUB_REPO")
     reset_cache = os.getenv("RESET_CACHE", 'false')
-    process_num = int(os.getenv('PREFILL_PROCESSES') or '2')
-
 
     # APIs
     auth = Auth.Token(token)
@@ -35,12 +33,12 @@ def main():
 
     # Extract Features
     extractor.extract_features()
-
-
     step_time = time_exec(step_time, "Feature extract")
 
     # Dump features to json
     features = build_feature_dataset(repo)
+    write_to_json(features, "./features.json")
+
 
 
 
