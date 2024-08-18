@@ -26,3 +26,4 @@ jobs:
           repo: ${{ inputs.repo }}
           use_model: 'false'
           db_path: ${{ inputs.db }}
+          

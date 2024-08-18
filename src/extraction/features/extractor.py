@@ -24,8 +24,8 @@ class Extractor:
         self.repo = repo
 
     def extract_features(self) -> None:
-        # self.run_parallel()
-        self.run_seq()
+        self.run_parallel()
+        # self.run_seq()
 
     def run_seq(self):
         # Sync PR states with project
