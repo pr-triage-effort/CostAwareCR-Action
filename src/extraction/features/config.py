@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 load_dotenv(override=True)
 
 # The number of days used to compile historical data for feature extraction
-HISTORY_LIMIT = True
 HISTORY_RANGE_DAYS = int(os.getenv('HISTORY_WINDOW') or '60')
 
 # Check the last update time before recomputing
