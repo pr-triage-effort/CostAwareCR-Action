@@ -39,6 +39,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: pr-analysis
+  cancel-in-progress: false
+
 jobs:
   analyze-prs:
     runs-on: ubuntu-latest
@@ -181,6 +185,9 @@ Some projects have too much of PRs to synchronize to the DB, and it may be impos
           db_path: '.github/scan/cache.db'
     ```
 
+## Contributing
+If you desire to offer help and contibute to the project, please read the developer [documentation](./docs/CONTRIBUTE.MD)
+
 ## Licence
 
-The scripts and documentation in this project are released under the [MIT License](LICENSE)
+The source code and documentation of project are released under the [MIT License](LICENSE)
