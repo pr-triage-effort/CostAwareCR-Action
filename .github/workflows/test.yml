@@ -18,6 +18,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        
       - name: test action
         uses: ./ # Uses an action in the root directory
         with:
