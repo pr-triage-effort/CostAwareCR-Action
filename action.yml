@@ -65,7 +65,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: 'pr-triage-effort/pr-triage-effort-action'
-        ref: 'main'
+        ref: 'v1'
         path: 'triage-action'
 
     - name: Install Python
