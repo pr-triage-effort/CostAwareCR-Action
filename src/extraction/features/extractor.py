@@ -1,9 +1,7 @@
 import time
 import multiprocessing as mp
-import numpy as np
 from datetime import timezone, timedelta, datetime
 from math import ceil
-from typing import List
 
 from github import Github
 from github.PullRequest import PullRequest
@@ -11,7 +9,7 @@ from github.Repository import Repository
 from sqlalchemy import func
 
 from db.db import PrReviewers, Session, PullRequest as db_PR, PrText, PrCode, PrAuthor
-from features.config import LOAD_PROCESSES, LOAD_PAGES, LOAD_PRS
+from features.config import LOAD_PROCESSES, LOAD_PRS
 from features.features_project import project_features
 from features.features_code import code_features
 from features.features_reviewer import reviewer_features

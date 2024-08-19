@@ -20,7 +20,7 @@ The GitHub Action is optimized with performance in mind where possible and requi
     - `contents`
     - `attestations`
     - `pull-requests`
-  - Depending on repository size (open/closed PRs) may require a personal access token (PAT) to achieve adequate performance - see [following section](#github-token-considerations)
+  - Depending on repository size (open/closed PRs) may require a personal access token (PAT) to achieve adequate performance - see [following section](#data-caching)
 - Cache space available in your repository
   - Is repository dependent (number of open/closed PRs)
   - Used by an SQLite database to accelerate future runs
@@ -63,7 +63,7 @@ The PR Triage by Review Effort action expects to be run in the context of a `pul
 on:
   pull-request:
     types: [opened, reopened, edited, synchronize, ready_for_review]
-    # Targetted branch
+    # Targeted branch
     branches:
       - main
 ```
@@ -89,6 +89,7 @@ on:
 ```
 
 ### Permissions
+
 When using the default `GITHUB_TOKEN` provided automatically at the start of each workflow run, you need to manually provide the required permissions in the workflow file. The PR Triage by Review Effort action needs write access for the `contents`,`attestations` and `pull-requests` scopes. If you are using a personal access token (PAT), you need to configure those permissions in the repository settings and add it to you secrets. See the [GitHub documentation][permission-scopes] for more info.
 
 ```yaml
@@ -160,13 +161,13 @@ Normally, you should leave the `prefill_processes` at it's default value, unless
 
 ## Analyzing large projects
 
-Some projects have too much of PRs to synchronize to the DB, and it may be impossible to install the action the normal way. Because the maximum job run-rime on GitHub hosted runners is limited to 6h, if your first run is unable to be finished by that time (use the `fill_time` formula) you may have to proceed in a more manual way to perform the first run, but after that it should work as always. The point of this procedure is to skip the DB syncronisation step by providing an already pre-filled DB. Here is how to do it:
+Some projects have too much of PRs to synchronize to the DB, and it may be impossible to install the action the normal way. Because the maximum job run-rime on GitHub hosted runners is limited to 6h, if your first run is unable to be finished by that time (use the `fill_time` formula) you may have to proceed in a more manual way to perform the first run, but after that it should work as always. The point of this procedure is to skip the DB synchronization step by providing an already pre-filled DB. Here is how to do it:
 
 1. Clone the GitHub Action repository locally on any local machine
 2. Create a `.env` file in the root directory of the project and configure minimally the following variables:
-   - `GITHUB_TOKEN` - Your PAT for API authentification
+   - `GITHUB_TOKEN` - Your PAT for API authentication
    - `GITHUB_REPO` - The `{owner/repo}` pairing of the project you want to install the action on
-3. If missing, install Pyhton (min. version is 3.10)
+3. If missing, install Python (min. version is 3.10)
 4. Install the required dependencies with `pip install -r .\src\extraction\requirements.txt`
 5. Run the feature extraction script: `python .\src\extraction\extract.py`
 6. Wait until the execution finishes (can take some time depending on project size)
@@ -186,8 +187,9 @@ Some projects have too much of PRs to synchronize to the DB, and it may be impos
     ```
 
 ## Contributing
-If you desire to offer help and contibute to the project, please read the developer [documentation](./docs/CONTRIBUTE.MD)
 
-## Licence
+If you desire to offer help and contribute to the project, please read the developer [documentation](./docs/CONTRIBUTE.MD)
+
+## License
 
 The source code and documentation of project are released under the [MIT License](LICENSE)

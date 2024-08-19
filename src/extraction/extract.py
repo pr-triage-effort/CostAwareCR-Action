@@ -24,7 +24,7 @@ def main():
     github_api = Github(auth=auth, retry=retry, per_page=100)
 
     # Modules
-    extractor = Extractor(github_api, repo, process_num)
+    extractor = Extractor(github_api, repo)
 
     #DB
     init_db(reset_cache == 'true')
