@@ -20,7 +20,7 @@ The GitHub Action is optimized with performance in mind where possible and requi
     - `contents`
     - `attestations`
     - `pull-requests`
-  - Depending on repository size (open/closed PRs) may require a personal access token (PAT) to achieve adequate performance - see [following section](#github-token-considerations)
+  - Depending on repository size (open/closed PRs) may require a personal access token (PAT) to achieve adequate performance - see [following section](#data-caching)
 - Cache space available in your repository
   - Is repository dependent (number of open/closed PRs)
   - Used by an SQLite database to accelerate future runs
@@ -38,6 +38,10 @@ on:
     types: [opened, reopened, edited, synchronize, ready_for_review]
     branches:
       - main
+
+concurrency:
+  group: pr-analysis
+  cancel-in-progress: false
 
 jobs:
   analyze-prs:
@@ -59,7 +63,7 @@ The PR Triage by Review Effort action expects to be run in the context of a `pul
 on:
   pull-request:
     types: [opened, reopened, edited, synchronize, ready_for_review]
-    # Targetted branch
+    # Targeted branch
     branches:
       - main
 ```
@@ -85,6 +89,7 @@ on:
 ```
 
 ### Permissions
+
 When using the default `GITHUB_TOKEN` provided automatically at the start of each workflow run, you need to manually provide the required permissions in the workflow file. The PR Triage by Review Effort action needs write access for the `contents`,`attestations` and `pull-requests` scopes. If you are using a personal access token (PAT), you need to configure those permissions in the repository settings and add it to you secrets. See the [GitHub documentation][permission-scopes] for more info.
 
 ```yaml
@@ -134,7 +139,12 @@ The action inputs ensures that the tool can run properly while accepting a small
         # is not present or reset. This parameter should be adjusted carefully as it may compromise other
         # systems that rely on the same PAT token (rate-limiting) as it caches all open and closed PR info
         # to accelerate it's subsequent run time. More on that in the Data Caching section. Defaults to 2.
-        prefill_processes: '2'   
+        prefill_processes: '2'
+        
+        # OPTIONAL: Path to the pre-existing SQLite database file in the repository (e.g., .github/scan/cache.db)'
+        # Can be necessary if the project you are analyzing is too big. You can estimate the minimum runtime with the
+        # formula in the 'Data Caching' section of the docs. If it's > 6h, must be used in order to install the action
+        db_path: ''
 ```
 
 ## Data Caching
@@ -149,10 +159,37 @@ Normally, you should leave the `prefill_processes` at it's default value, unless
 
 [rate-limits]: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28
 
-## FAQs
+## Analyzing large projects
 
-TODO
+Some projects have too much of PRs to synchronize to the DB, and it may be impossible to install the action the normal way. Because the maximum job run-rime on GitHub hosted runners is limited to 6h, if your first run is unable to be finished by that time (use the `fill_time` formula) you may have to proceed in a more manual way to perform the first run, but after that it should work as always. The point of this procedure is to skip the DB synchronization step by providing an already pre-filled DB. Here is how to do it:
 
-## Licence
+1. Clone the GitHub Action repository locally on any local machine
+2. Create a `.env` file in the root directory of the project and configure minimally the following variables:
+   - `GITHUB_TOKEN` - Your PAT for API authentication
+   - `GITHUB_REPO` - The `{owner/repo}` pairing of the project you want to install the action on
+3. If missing, install Python (min. version is 3.10)
+4. Install the required dependencies with `pip install -r .\src\extraction\requirements.txt`
+5. Run the feature extraction script: `python .\src\extraction\extract.py`
+6. Wait until the execution finishes (can take some time depending on project size)
+7. Grab the generated `cache.db` file and upload it somewhere in the project repo where you will be installing the action (ex. `.github/scan/cache.db`)
+8. When running the action for the first time in you workflow, provide the path of the DB file to the `db_path` input of the action.
 
-The scripts and documentation in this project are released under the [MIT License](LICENSE)
+    ```yaml
+    jobs:
+    analyze-prs:
+      runs-on: ubuntu-latest
+      steps:
+      - name: PR Triage
+        uses: pr-triage-effort/pr-triage-effort-action@v1
+        with:
+          github_token: ${{ secrets.ANALYSIS_TOKEN }}
+          db_path: '.github/scan/cache.db'
+    ```
+
+## Contributing
+
+If you desire to offer help and contribute to the project, please read the developer [documentation](./docs/CONTRIBUTE.MD)
+
+## License
+
+The source code and documentation of project are released under the [MIT License](LICENSE)

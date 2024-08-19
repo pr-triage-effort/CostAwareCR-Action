@@ -30,27 +30,29 @@ inputs:
   prefill_processes:
     description: number of parallel processes used during the DB fill, the first time you run the action
     required: false
+  db_path:
+    description: 'Path to the pre-existing SQLite database file in the repository (e.g., .github/scan/cache.db)'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
   steps:
-    - name: Checkout action
+    - name: Checkout project repository with DB file
+      if: ${{ inputs.db_path != '' }}
       uses: actions/checkout@v4
       with:
-        repository: 'pr-triage-effort/pr-triage-effort-action'
-        ref: 'dev'
-        path: 'triage-action'
+        path: 'project-repo'
 
-    - name: Install Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10.14' 
-    
-    - name: Install Dependencies
-      run: pip install -r triage-action/src/extraction/requirements.txt
+    - name: Use Pre-existing Database
+      if: ${{ inputs.db_path != '' }}
+      run: |
+        echo "Skipping cache restore because db_path is provided."
+        mv project-repo/${{ inputs.db_path }} ./cache.db
       shell: bash
 
     - name: Restore Cached Metrics
+      if: ${{ inputs.db_path == '' }}
       id: cache-db-restore
       uses: actions/cache/restore@v4
       with:
@@ -59,6 +61,21 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-
 
+    - name: Checkout action repo
+      uses: actions/checkout@v4
+      with:
+        repository: 'pr-triage-effort/pr-triage-effort-action'
+        ref: 'main'
+        path: 'triage-action'
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10.14' 
+
+    - name: Install Dependencies
+      run: pip install -r triage-action/src/extraction/requirements.txt
+      shell: bash
 
     - name: Run Analysis
       run: python triage-action/src/extraction/extract.py
@@ -74,12 +91,14 @@ runs:
       
     - name: Create New Cache Key
       id: create-cache-key
+      shell: bash
+
       run: |
         new_hash=$(sha256sum ./cache.db | cut -d ' ' -f 1)
         echo "new-cache-key=${{ runner.os }}-pr-analysis-${{ inputs.repo }}-${{ github.ref }}-${new_hash}" >> $GITHUB_OUTPUT
 
     - name: Save/Update Cached Metrics
-      if: steps.compare-cache.outputs.new-cache-key != ''
+      if: steps.compare-cache.outputs.new-cache-key != '' || inputs.db_path != ''
       uses: actions/cache/save@v4
       with:
         path: ./cache.db
