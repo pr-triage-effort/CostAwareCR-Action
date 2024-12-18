@@ -1,12 +1,12 @@
 import os
-from dotenv import load_dotenv
 from datetime import datetime, timezone
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
 # The number of days used to compile historical data for feature extraction
-HISTORY_LIMIT = True
-HISTORY_RANGE_DAYS = int(os.getenv('HISTORY_WINDOW') or '60')
+MAX_TRAINING_PR_AGE = int(os.getenv('MAX_PR_AGE') or '365')
+HISTORY_WINDOW_DAYS = int(os.getenv('HISTORY_WINDOW') or '60')
 
 # Number of days in a year
 DAYS_PER_YEAR = 365.25

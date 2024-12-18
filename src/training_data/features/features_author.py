@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from statistics import median
 
 from github import Github
@@ -10,16 +10,16 @@ from sqlalchemy import func
 
 from db.db import Session, PrAuthor, PullRequest as db_PR
 from features.user_utils import is_bot_user, is_user_reviewer, try_get_total_prs, try_get_reviews_num
-from features.config import HISTORY_RANGE_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO, DATETIME_NOW
+from features.config import HISTORY_WINDOW_DAYS, DAYS_PER_YEAR, DEFAULT_MERGE_RATIO
 
-HISTORY_WINDOW = timedelta(days=HISTORY_RANGE_DAYS)
+HISTORY_WINDOW = timedelta(days=HISTORY_WINDOW_DAYS)
 
 def author_features(api: Github, prs: list[PullRequest]) -> None:
     start_time = time.time()
 
     for pr in prs:
         step_time = time.time()
-        extract_author_feature(api, pr)
+        extract_author_features(api, pr)
         print(f"\tPR({pr.number}): {pr.title} | {time.time() - step_time}s")
 
     # Assign private user features based on median
@@ -29,7 +29,7 @@ def author_features(api: Github, prs: list[PullRequest]) -> None:
 
     print(f"Step: \"Author Features\" executed in {time.time() - start_time}s")
 
-def extract_author_feature(api: Github, pr: PullRequest):
+def extract_author_features(api: Github, pr: PullRequest):
     author = pr.user
     repo = pr.base.repo
     pr_creation = pr.created_at
@@ -38,10 +38,11 @@ def extract_author_feature(api: Github, pr: PullRequest):
     with Session() as session:
         author_feat_pr = session.query(PrAuthor).where(PrAuthor.pr_num == pr.number).one_or_none()
         author_feat_sim = session.query(PrAuthor).where(PrAuthor.username == author.login).where(PrAuthor.pr_date == pr_creation.date()).first()
+        author_feat_other = session.query(PrAuthor).where(PrAuthor.username == author.login).first()
 
     # Return if info present
     if author_feat_pr or author_feat_sim:
-        if author_feat_pr: 
+        if author_feat_pr:
             return
 
         if author_feat_sim:
@@ -54,12 +55,12 @@ def extract_author_feature(api: Github, pr: PullRequest):
 
     # Depending on user type, different processing
     author_feats = {}
-    user_type = author_feat_pr.type if author_feat_pr else None
+    user_type = author_feat_other.type if author_feat_other else None
     match(user_type):
         case 'bot':
             author_feats = bot_author_features(repo, author, pr_creation)
         case 'private':
-            author_feats = private_author_features(repo, author, pr_creation)
+            author_feats = private_author_features(author, pr_creation)
         case _:
             author_feats = unknown_user_features(api, repo, author, pr_creation)
 
@@ -76,16 +77,17 @@ def bot_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
         query = session.query(db_PR).filter(
             db_PR.author == author.login,
             db_PR.state == 'closed',
-            db_PR.closed <= fr_date,
-            db_PR.closed >= time_limit,
+            db_PR.closed_at <= fr_date,
+            db_PR.closed_at >= time_limit,
         )
         closed_prs = query.count()
         merged_prs = query.where(db_PR.merged).count()
         total_change_number = session.query(db_PR).where(db_PR.author == author_name).count()
+
         rev_pr_nums = session.query(db_PR.number).filter(
             db_PR.state == 'closed',
-            db_PR.closed <= fr_date,
-            db_PR.closed >= time_limit,
+            db_PR.closed_at <= fr_date,
+            db_PR.closed_at >= time_limit,
         ).all()
         rev_pr_nums = [pr.number for pr in rev_pr_nums]
 
@@ -97,7 +99,7 @@ def bot_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
             review_number += 1
 
     if closed_prs > 0:
-        changes_per_week = closed_prs * (7/HISTORY_RANGE_DAYS)
+        changes_per_week = closed_prs * (7/HISTORY_WINDOW_DAYS)
         project_merge_ratio = merged_prs / closed_prs
     else:
         changes_per_week = 0
@@ -114,7 +116,7 @@ def bot_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
         'project_merge_ratio': project_merge_ratio,
     }
 
-def private_author_features(repo: Repository, author: NamedUser, fr_date: datetime):
+def private_author_features(author: NamedUser, fr_date: datetime):
     # Merge ratios
     time_limit = fr_date - HISTORY_WINDOW
 
@@ -123,12 +125,12 @@ def private_author_features(repo: Repository, author: NamedUser, fr_date: dateti
         query = session.query(db_PR).filter(
             db_PR.author == author.login,
             db_PR.state == 'closed',
-            db_PR.closed <= fr_date,
-            db_PR.closed >= time_limit,
+            db_PR.closed_at <= fr_date,
+            db_PR.closed_at >= time_limit,
         )
         closed_pr_num = query.count()
         merged_pr_num = query.where(db_PR.merged).count()
-        
+
     global_merge_ratio = DEFAULT_MERGE_RATIO
     if closed_pr_num > 0:
         project_merge_ratio = merged_pr_num / closed_pr_num
@@ -192,14 +194,14 @@ def unknown_user_features(api: Github, repo: Repository, author: NamedUser, fr_d
 
     # Detect private user (if private, a 422 error was thrown in try_get_total_prs)
     if total_change_number is None:
-        return private_author_features(repo, author, fr_date)
+        return private_author_features(author, fr_date)
 
     # Reviews
     review_number = try_get_reviews_num(author_name, time_limit, fr_date, api)
 
     # Changes per week
     global_pr_closed = api.search_issues(f"author:{author_name} type:pr is:closed closed:{time_limit.date()}..{fr_date.date()}").totalCount
-    changes_per_week = global_pr_closed * (7/HISTORY_RANGE_DAYS)
+    changes_per_week = global_pr_closed * (7/HISTORY_WINDOW_DAYS)
 
     # Merge Ratios
     if global_pr_closed == 0:
@@ -214,8 +216,8 @@ def unknown_user_features(api: Github, repo: Repository, author: NamedUser, fr_d
             query = session.query(db_PR).filter(
                 db_PR.author == author_name,
                 db_PR.state == 'closed',
-                db_PR.closed <= fr_date,
-                db_PR.closed >= time_limit,
+                db_PR.closed_at <= fr_date,
+                db_PR.closed_at >= time_limit,
             )
             proj_closed_pulls = query.count()
             proj_merged_pulls = query.where(db_PR.merged).count()

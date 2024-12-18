@@ -6,14 +6,11 @@ import sqlalchemy as sa
 from sqlalchemy import ForeignKey, CheckConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, sessionmaker, DeclarativeBase, relationship
 
-load_dotenv(override=True)
-CACHE_RESET = os.environ.get("RESET_CACHE")
-
 db = sa.create_engine('sqlite:///training_data.db', echo=False)
 Session = sessionmaker(bind=db)
 
-def init_db() -> None:
-    if CACHE_RESET == 'true':
+def init_db(cache_reset: bool) -> None:
+    if cache_reset:
         print('Cached db entries will be reset')
         if os.path.isfile('./training_data.db'):
             os.remove('./training_data.db')
@@ -38,20 +35,37 @@ class PrProject(Base):
     def __status__(self) -> str:
         return f"<Project(pr_num={self.pr_num}, cpw={self.changes_per_week}, cpa={self.changes_per_author}, mr={self.merge_ratio})>"
 
-class PrReviewer(Base):
+class User(Base):
     __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(unique=True)
+    username: Mapped[str]
     type: Mapped[str] = mapped_column (nullable=True)
     experience: Mapped[float] = mapped_column(nullable=True)
     review_number: Mapped[int] = mapped_column(nullable=True)
     pr_date: Mapped[date] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
+    pr_num: Mapped[int] = mapped_column(ForeignKey('pull_requests.number'))
 
     def __status__(self) -> str:
         return f"<User(username={self.username}, type={self.type}, last_upd={self.last_update})>"
+
+class PrReviewers(Base):
+    __tablename__ = 'pr_reviewers'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    humans: Mapped[int]
+    bots: Mapped[int]
+    avg_experience: Mapped[float]
+    avg_reviews: Mapped[float]
+    last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+
+    pr_num: Mapped[int] = mapped_column(ForeignKey('pull_requests.number'))
+    pr: Mapped['PullRequest'] = relationship(back_populates='reviewer_feat')
+
+    def __status__(self) -> str:
+        return f"<PrReviewers(pr={self.pr_num}, humans={self.humans}, bots={self.bots}, avg_exp={self.avg_experience}, avg_reviews={self.avg_reviews})>"
 
 class PrAuthor(Base):
     __tablename__ = 'pr_author'
@@ -73,22 +87,6 @@ class PrAuthor(Base):
 
     def __status__(self) -> str:
         return f"<User(username={self.username}, type={self.type}, last_upd={self.last_update})>"
-
-class PrReviewers(Base):
-    __tablename__ = 'pr_reviewers'
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    humans: Mapped[int]
-    bots: Mapped[int]
-    avg_experience: Mapped[float]
-    avg_reviews: Mapped[float]
-    last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
-
-    pr_num: Mapped[int] = mapped_column(ForeignKey('pull_requests.number'))
-    pr: Mapped['PullRequest'] = relationship(back_populates='reviewer_feat')
-
-    def __status__(self) -> str:
-        return f"<PrReviewers(pr={self.pr_num}, humans={self.humans}, bots={self.bots}, avg_exp={self.avg_experience}, avg_reviews={self.avg_reviews})>"
 
 class PrText(Base):
     __tablename__ = 'pr_text'
@@ -134,8 +132,9 @@ class PullRequest(Base):
     state: Mapped[str]
     merged: Mapped[bool]
     author: Mapped[str]
-    created: Mapped[datetime]
-    closed: Mapped[datetime] = mapped_column(nullable=True)
+    created_at: Mapped[datetime]
+    closed_at: Mapped[datetime] = mapped_column(nullable=True)
+    last_change: Mapped[datetime] = mapped_column(nullable=True)
     last_update: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
     author_feat: Mapped [PrAuthor | None] = relationship(back_populates='pr')

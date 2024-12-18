@@ -5,8 +5,8 @@ import time
 from dotenv import load_dotenv
 from github import Github, Auth, GithubRetry
 
-from db.db import Session, init_db, Project, PullRequest
-from features.extractor import Extractor
+from db.db import Session, init_db, PullRequest
+from features.extractor_V2 import Extractor
 from utils import time_exec
 
 def main():
@@ -26,18 +26,18 @@ def main():
     extractor = Extractor(github_api, repo)
 
     #DB
-    init_db()
+    init_db(cache_reset=True)
 
-    step_time = time_exec(start_time, "Init")
+    # step_time = time_exec(start_time, "Init")
 
     # Extract Features
     extractor.extract_features()
 
-    step_time = time_exec(step_time, "Feature extract")
+    # step_time = time_exec(step_time, "Feature extract")
 
     # Dump features to json
-    features = build_feature_dataset(repo)
-    write_to_json(features, "./features.json")
+    features = build_feature_dataset()
+    write_to_json(features, "./training_features.json")
 
 
 
@@ -45,12 +45,12 @@ def write_to_json(data: list, path: str):
     with open(path, "w", encoding="utf-8") as output_file:
         json.dump(data, output_file, indent=2)
 
-def build_feature_dataset(repo: str):
+def build_feature_dataset():
     start_time = time.time()
 
     with Session() as session:
-        prs = session.query(PullRequest).where(PullRequest.state == 'open').all()
-        features = [build_pr_features(pr) for pr in prs]
+        prs = session.query(PullRequest).where(PullRequest.state == 'closed').all()
+        features = [build_pr_features(pr) for pr in prs if pr.author_feat is not None]
 
     print(f"Dataset generation done in {time.time() - start_time}s")
     return features
@@ -58,9 +58,9 @@ def build_feature_dataset(repo: str):
 def build_pr_features(pr: PullRequest):
     author_feat = pr.author_feat
     reviewer_feat = pr.reviewer_feat
+    proj_feat = pr.project_feat
     text_feat = pr.text_feat
     code_feat = pr.code_feat
-    proj_feat = pr.project_feat
 
     return {
         'title': pr.title,

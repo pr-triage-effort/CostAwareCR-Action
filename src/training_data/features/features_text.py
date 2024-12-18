@@ -7,12 +7,7 @@ from db.db import Session, PrText
 def text_features(prs: list[PullRequest]) -> PrText:
     start_time = time.time()
 
-    # Reset PrText table
-    with Session() as session:
-        session.query(PrText).delete()
-        session.commit()
-
-    text_feats = [extract_text_feature(pr) for pr in prs]
+    text_feats = [extract_text_features(pr) for pr in prs]
 
     with Session() as session:
         session.add_all(text_feats)
@@ -20,7 +15,7 @@ def text_features(prs: list[PullRequest]) -> PrText:
 
     print(f"Step: \"Text Features\" executed in {time.time() - start_time}s")
 
-def extract_text_feature(pr: PullRequest) -> PrText:
+def extract_text_features(pr: PullRequest) -> PrText:
     description_length = 0
     is_documentation = 0
     is_bug_fixing = 0

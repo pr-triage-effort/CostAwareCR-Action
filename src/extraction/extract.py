@@ -50,7 +50,8 @@ def build_feature_dataset(repo: str):
     start_time = time.time()
 
     with Session() as session:
-        project = session.query(Project).where(Project.name == repo).one()
+        # TODO remove dependency on repo name because only 1 entry in PrProjects?
+        project = session.query(Project).first()
         prs = session.query(PullRequest).where(PullRequest.state == 'open').all()
         features = [build_pr_features(pr, project) for pr in prs]
 
