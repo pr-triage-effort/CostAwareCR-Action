@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # The number of days used to compile historical data for feature extraction
-MAX_TRAINING_PR_AGE = int(os.getenv('MAX_PR_AGE') or '365')
+MAX_TRAINING_PR_AGE = int(os.getenv('MAX_TRAINING_PR_AGE') or '0')
 HISTORY_WINDOW_DAYS = int(os.getenv('HISTORY_WINDOW') or '60')
 
 # Number of days in a year

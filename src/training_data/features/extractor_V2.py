@@ -28,8 +28,9 @@ class Extractor:
         self.db_sync_and_clean(closed_pulls)
 
         # DATASET CUT-OFF (too old/long-running -> exclude from DATASET)
-        cutoff = DATETIME_NOW - DATASET_AGE_WINDOW
-        closed_pulls = [pr for pr in closed_pulls if pr.created_at.replace(tzinfo=timezone.utc) >= cutoff]
+        if MAX_TRAINING_PR_AGE > 0:
+            cutoff = DATETIME_NOW - DATASET_AGE_WINDOW
+            closed_pulls = [pr for pr in closed_pulls if pr.created_at.replace(tzinfo=timezone.utc) >= cutoff]
 
         # Calc missing features
         author_features(self.api, closed_pulls)
@@ -54,7 +55,7 @@ class Extractor:
         #     session.commit()
 
         # TODO Review Sync for DB reuse
-        save_prs_to_db(prs)
+        save_prs_to_db_batched(prs)
         # save_prs_to_db_batched(prs)
 
         print(f"Step: \"DB Sync & Clean\" executed in {time.time() - start_time}s")
@@ -73,6 +74,11 @@ def save_prs_to_db_batched(prs: list[PullRequest]):
     if len(pr_batch) > 0:
         save_batch_to_db(pr_batch)
         pr_batch.clear()
+        
+    # PRs Total
+    with Session() as session:
+        total = session.query(db_PR).count()
+        print(f"A total of {total} PRs were saved")
 
 
 def save_prs_to_db(prs: list[PullRequest]):
@@ -84,6 +90,7 @@ def save_batch_to_db(pr_batch: list[db_PR]):
     with Session() as session:
         session.add_all(pr_batch)
         session.commit()
+        print(f"\t{len(pr_batch)} PRs were saved")
 
 
 def create_pr_obj(pr: PullRequest) -> db_PR:
